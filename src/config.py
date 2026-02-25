@@ -1,4 +1,4 @@
-"""Configuration and shared constants for Cosmic Origins."""
+"""Configuration and shared constants for the gravity simulation."""
 
 from __future__ import annotations
 
@@ -6,27 +6,21 @@ from dataclasses import dataclass
 
 
 @dataclass
-class PathAConfig:
-    """Basic configuration for Path A (cosmic gravity demo)."""
+class GravityConfig:
+    """Configuration for the gravity simulation (Phase 1: 2D; Phase 2: 3D)."""
 
-    dim: int = 2  # start in 2D, extend to 3D
-    n_particles: int = 500
+    dim: int = 2  # 2D for Phase 1, extend to 3D later
+    n_particles: int = 1000
     time_step: float = 0.01
     softening_length: float = 0.05
-
-
-@dataclass
-class PathBConfig:
-    """Basic configuration for Path B (collider models)."""
-
-    ring_radius_km: float = 27.0  # LHC-scale baseline (toy)
-    beam_energy_TeV: float = 7.0  # toy value
+    M_star: float = 1.0
+    r_min: float = 0.5
+    r_max: float = 2.0
+    ic_type: str = "disk"  # "disk" or "cloud"
 
 
 @dataclass
 class AppConfig:
     """Top-level configuration wrapper."""
 
-    path_a: PathAConfig = PathAConfig()
-    path_b: PathBConfig = PathBConfig()
-
+    gravity: GravityConfig = GravityConfig()

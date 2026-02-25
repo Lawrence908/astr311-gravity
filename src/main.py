@@ -1,19 +1,13 @@
-"""Command-line entry point for Cosmic Origins.
-
-For now, this just confirms that the repo is initialized.
-"""
+"""Command-line entry point for the gravity simulation project."""
 
 from __future__ import annotations
 
 
 def main() -> None:
-    """Run a simple startup message.
-
-    Physics and visualization will be added in the Path A 2D demo.
-    """
+    """Run a simple startup message."""
     print(
-        "Cosmic Origins: repo initialized. "
-        "Next: create Path A 2D visual demo."
+        "Gravitational Simulation of Solar System Formation: repo initialized. "
+        "Run the 2D demo: python -m gravity.demo_2d"
     )
 
 
