@@ -1,19 +1,38 @@
-# Cosmic Origins (Possible title)
+# Gravitational Simulation of Solar System Formation
 
-An educational astronomy project exploring how simple physical rules give rise to structure in the universe.
+An educational ASTR 311 project: a visual simulation showing how gravity organizes matter into stable orbital structures. We model a simplified system in which many small particles interact with a central mass (a star), so we can observe how structure emerges through gravitational attraction alone.
 
-This repo supports two connected paths:
-- **Path A – Cosmic structure formation**: toy N-body gravity in 2D → 3D (early clustering / proto-galaxies).
-- **Path B – Particle colliders**: simple numerical models for collider energy scaling and collision concepts.
+## What this project is
+
+We build a Newtonian N-body gravity simulation with:
+- A central star and orbiting particles (disk or cloud initial conditions)
+- Leapfrog integration and gravitational softening
+- Energy and angular momentum diagnostics
+- A 2D prototype (Phase 1), with plans for 3D, scaling, and a WebGL replay viewer
+
+The goal is not full astrophysical realism but a clear, educational model that illustrates how gravity shapes motion and structure in space.
 
 ## Course context
 
-Upper-level astronomy group project — visual simulations and numerical models to connect lecture concepts
-(early-universe structure, dark matter, particle physics) to concrete, inspectable computations.
+Upper-level astronomy group project. The simulation connects lecture concepts (Newtonian gravity, orbital motion, multi-body dynamics, emergent structure) to concrete, inspectable computations.
 
-## Getting started (placeholder)
+- **Team:** 4 members (see `docs/work-breakdown.md` for roles)
+- **Course / term:** _TBD_
+- **Instructor:** _TBD_
 
-See `docs/PROJECT_SCOPE.md` and `docs/DEVELOPMENT_STRATEGY.md` for the big picture.
+## Development phases
 
-A more detailed “how to run” section can be added when the process is more defined.
+See `docs/project-outline.md` and `docs/DEVELOPMENT_STRATEGY.md` for the full plan.
 
+1. **Phase 1 — 2D prototype (CPU):** Gravity, integration, disk/cloud ICs, diagnostics, validation.
+2. **Phase 2 — 3D extension:** 3D physics and visualization.
+3. **Phase 3 — Scaling:** Increase particle count (10k–100k+), CPU optimization, optional GPU.
+4. **Phase 4 — WebGL viewer:** Export replay data; browser-based 3D viewer for replay and interaction.
+
+## Getting started
+
+- **Setup:** `pip install -r requirements.txt` (or `uv pip install -r requirements.txt`).
+- **Run tests:** From project root, `cd src && python -m gravity.tests_2d`
+- **Run 2D demo:** `cd src && python -m gravity.demo_2d` (optional args: `--n`, `--steps`, `--ic`, `--dt`)
+
+See `docs/PROJECT_SCOPE.md` and `docs/ARCHITECTURE.md` for scope and code layout.

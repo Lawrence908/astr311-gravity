@@ -1,0 +1,19 @@
+# Cosmic Origins sim server: web viewer + run simulations from the browser.
+# From repo root: docker compose up
+# Then open http://localhost:8088
+services:
+  sim-server:
+    build: .
+    ports:
+      - "8088:8088"
+    environment:
+      - PORT=8088
+      - PYTHONPATH=/app/src
+    volumes:
+      # Persist saved replays so they survive container restarts
+      - replays:/app/web-viewer/replays
+    # Demo subprocess stdout/stderr go to this container's logs
+    # View progress: docker compose logs -f sim-server
+
+volumes:
+  replays:
