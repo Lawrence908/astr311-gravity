@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Gravity simulation replay</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+    #canvas { display: block; }
+    #controls {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      background: rgba(0,0,0,0.6);
+      color: #eee;
+      padding: 12px;
+      border-radius: 8px;
+    }
+    #controls label { margin-right: 8px; }
+    #timeline { width: 100%; max-width: 400px; vertical-align: middle; }
+    #stepInfo { margin-top: 8px; font-size: 14px; }
+    .row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
+    #playBtn { padding: 6px 14px; cursor: pointer; font-size: 14px; border-radius: 4px; }
+    #speedSelect { padding: 4px 8px; font-size: 14px; min-width: 5em; }
+    #panel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 280px;
+      max-height: 90vh;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.75);
+      color: #eee;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    #panel h3 { margin: 0 0 8px 0; font-size: 14px; }
+    #panel section { margin-bottom: 14px; }
+    #panel select, #panel input[type="number"], #panel input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 4px 6px;
+      margin: 2px 0 6px 0;
+    }
+    #panel .row-inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+    #panel .row-inline label { margin-right: 4px; }
+    #panel button { padding: 6px 10px; cursor: pointer; margin-right: 6px; margin-bottom: 4px; border-radius: 4px; }
+    #panel .runStatus { margin-top: 8px; font-style: italic; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="panel">
+    <h3>Replays</h3>
+    <section>
+      <select id="replaySelect" size="1">
+        <option value="">-- none --</option>
+      </select>
+      <div class="row-inline">
+        <button type="button" id="replayLoad">Load</button>
+        <button type="button" id="replayRefresh">Refresh</button>
+        <button type="button" id="replayDelete">Delete</button>
+      </div>
+    </section>
+    <h3>Run simulation</h3>
+    <section>
+      <label>Dimension</label>
+      <div class="row-inline">
+        <label><input type="radio" name="dim" value="2d"> 2D</label>
+        <label><input type="radio" name="dim" value="3d" checked> 3D</label>
+      </div>
+      <label>IC</label>
+      <select id="runIc">
+        <option value="disk">disk</option>
+        <option value="cloud">cloud</option>
+      </select>
+      <label>Particles (N)</label>
+      <input type="number" id="runN" min="1" max="10000" value="500">
+      <label>Steps</label>
+      <input type="number" id="runSteps" min="1" max="100000" value="1000">
+      <label>dt</label>
+      <input type="number" id="runDt" step="0.001" value="0.01">
+      <label>r_max</label>
+      <input type="number" id="runRmax" step="0.1" value="2">
+      <label>Replay every</label>
+      <input type="number" id="runReplayEvery" min="1" value="20">
+      <label>Softening</label>
+      <input type="number" id="runSoftening" step="0.01" value="0.05">
+      <label>Seed</label>
+      <input type="number" id="runSeed" value="42">
+      <label>Name</label>
+      <input type="text" id="runName" placeholder="e.g. disk3d_500_1000">
+      <button type="button" id="runBtn">Run simulation</button>
+      <div id="runStatus" class="runStatus"></div>
+    </section>
+  </div>
+  <div id="controls">
+    <div class="row">
+      <button type="button" id="playBtn">Play</button>
+      <label for="speedSelect">Speed</label>
+      <select id="speedSelect">
+        <option value="0.5">0.5x</option>
+        <option value="1" selected>1x</option>
+        <option value="2">2x</option>
+        <option value="5">5x</option>
+        <option value="10">10x</option>
+        <option value="50">50x</option>
+        <option value="100">100x</option>
+        <option value="500">500x</option>
+        <option value="1000">1000x</option>
+      </select>
+      <label for="timeline">Step</label>
+      <input type="range" id="timeline" min="0" max="0" value="0">
+    </div>
+    <div id="stepInfo">Load a replay (replay.json)</div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    let scene, camera, renderer, controls, particleInstances, starMesh, replayData;
+    let playing = false;
+    let playAnimationId = null;
+    let playStartTime = 0;
+    let playStartIndex = 0;
+    const dummy = new THREE.Object3D();
+
+    function init() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0a0a12);
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 1000);
+      camera.position.set(4, 3, 5);
+      camera.lookAt(0, 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    function buildParticles(positions, is2D) {
+      const n = positions.length - 1;
+      if (n <= 0) return null;
+      const geo = new THREE.SphereGeometry(0.04, 8, 6);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x5599ff });
+      const mesh = new THREE.InstancedMesh(geo, mat, n);
+      mesh.count = n;
+      for (let i = 0; i < n; i++) {
+        const p = positions[i + 1];
+        dummy.position.set(p[0], p[1], is2D ? 0 : (p[2] ?? 0));
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      return mesh;
+    }
+
+    function buildStar(positions, is2D) {
+      const x = positions[0][0], y = positions[0][1], z = is2D ? 0 : (positions[0][2] ?? 0);
+      const geo = new THREE.SphereGeometry(0.08, 16, 12);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffdd00 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      return mesh;
+    }
+
+    function setFrameIndex(idx) {
+      if (!replayData) return;
+      const tl = document.getElementById('timeline');
+      const n = replayData.n_snapshots;
+      idx = Math.max(0, Math.min(idx, n - 1));
+      tl.value = idx;
+      updateParticles(idx);
+      document.getElementById('stepInfo').textContent =
+        `Step ${replayData.steps[idx]} / ${replayData.steps[replayData.steps.length - 1]}  (snapshot ${idx + 1}/${replayData.n_snapshots})  dt=${replayData.dt}`;
+    }
+
+    function updateParticles(frameIndex) {
+      if (!replayData) return;
+      const pos = replayData.positions[frameIndex];
+      const is2D = pos[0].length === 2;
+      if (particleInstances) {
+        const n = pos.length - 1;
+        for (let i = 0; i < n; i++) {
+          const p = pos[i + 1];
+          dummy.position.set(p[0], p[1], is2D ? 0 : (p[2] ?? 0));
+          dummy.updateMatrix();
+          particleInstances.setMatrixAt(i, dummy.matrix);
+        }
+        particleInstances.instanceMatrix.needsUpdate = true;
+      }
+      if (starMesh) {
+        starMesh.position.set(pos[0][0], pos[0][1], is2D ? 0 : (pos[0][2] ?? 0));
+      }
+    }
+
+    function applyReplayData(data) {
+      replayData = data;
+      const frameIndex = 0;
+      const is2D = data.positions[0][0].length === 2;
+      if (particleInstances) scene.remove(particleInstances);
+      if (starMesh) scene.remove(starMesh);
+      particleInstances = buildParticles(data.positions[frameIndex], is2D);
+      starMesh = buildStar(data.positions[frameIndex], is2D);
+      if (particleInstances) scene.add(particleInstances);
+      scene.add(starMesh);
+
+      const tl = document.getElementById('timeline');
+      tl.min = 0;
+      tl.max = Math.max(0, data.n_snapshots - 1);
+      tl.value = 0;
+      tl.oninput = () => {
+        const idx = parseInt(tl.value, 10);
+        setFrameIndex(idx);
+      };
+
+      const playBtn = document.getElementById('playBtn');
+      const speedSelect = document.getElementById('speedSelect');
+          playBtn.onclick = () => {
+            playing = !playing;
+            playBtn.textContent = playing ? 'Pause' : 'Play';
+            if (playing) {
+              playStartTime = performance.now();
+              playStartIndex = parseInt(tl.value, 10);
+              function tick(now) {
+                if (!playing) return;
+                playAnimationId = requestAnimationFrame(tick);
+                const speed = parseFloat(speedSelect.value);
+                const n = replayData.n_snapshots;
+                if (n <= 1) return;
+                const elapsed = (now - playStartTime) / 1000;
+                const floatIdx = playStartIndex + elapsed * speed;
+                let idx = Math.floor(floatIdx) % n;
+                if (idx < 0) idx += n;
+                setFrameIndex(idx);
+              }
+              playAnimationId = requestAnimationFrame(tick);
+            } else {
+              if (playAnimationId != null) cancelAnimationFrame(playAnimationId);
+              playStartIndex = parseInt(tl.value, 10);
+            }
+          };
+
+      document.getElementById('stepInfo').textContent =
+        `Step ${data.steps[0]}  (${data.n_snapshots} snapshots, ${data.n_particles} particles)  dt=${data.dt}`;
+    }
+
+    function loadReplay(url) {
+      const u = url || 'replay.json';
+      fetch(u)
+        .then(r => {
+          if (!r.ok) throw new Error(r.statusText);
+          return r.json();
+        })
+        .then(data => applyReplayData(data))
+        .catch(err => {
+          document.getElementById('stepInfo').textContent =
+            'Load a replay from the panel, or drop replay.json and refresh. With server: run simulations from the panel.';
+        });
+    }
+
+    let apiBase = '';
+    function fetchReplays() {
+      return fetch(apiBase + '/api/replays')
+        .then(r => r.ok ? r.json() : Promise.reject(new Error('No server')))
+        .then(list => {
+          const sel = document.getElementById('replaySelect');
+          sel.innerHTML = '<option value="">-- none --</option>';
+          list.forEach(r => {
+            const opt = document.createElement('option');
+            opt.value = r.name;
+            opt.textContent = r.name + (r.size_kb ? ' (' + r.size_kb + ' kB)' : '');
+            sel.appendChild(opt);
+          });
+          return list;
+        });
+    }
+
+    function suggestRunName() {
+      const dim = document.querySelector('input[name="dim"]:checked').value;
+      const ic = document.getElementById('runIc').value;
+      const n = document.getElementById('runN').value;
+      const steps = document.getElementById('runSteps').value;
+      return (ic + dim + '_' + n + '_' + steps).replace(/\s/g, '');
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    init();
+    (function initPanel() {
+      document.getElementById('runName').placeholder = suggestRunName();
+      const updatePlaceholder = () => { document.getElementById('runName').placeholder = suggestRunName(); };
+      document.getElementById('runN').oninput = document.getElementById('runSteps').oninput = document.getElementById('runIc').oninput = updatePlaceholder;
+      document.querySelectorAll('input[name="dim"]').forEach(el => { el.oninput = updatePlaceholder; });
+
+      document.getElementById('replayLoad').onclick = () => {
+        const name = document.getElementById('replaySelect').value;
+        if (!name) return;
+        loadReplay('/replays/' + name + '.json');
+      };
+      document.getElementById('replaySelect').onchange = () => {
+        const name = document.getElementById('replaySelect').value;
+        if (name) loadReplay('/replays/' + name + '.json');
+      };
+      document.getElementById('replayRefresh').onclick = () => {
+        fetchReplays().catch(() => {});
+      };
+      document.getElementById('replayDelete').onclick = () => {
+        const name = document.getElementById('replaySelect').value;
+        if (!name || !confirm('Delete replay "' + name + '"?')) return;
+        fetch(apiBase + '/api/replays/' + encodeURIComponent(name), { method: 'DELETE' })
+          .then(r => r.json())
+          .then(body => { if (body.ok) return fetchReplays(); })
+          .catch(() => {});
+      };
+
+      document.getElementById('runBtn').onclick = () => {
+        const dim = document.querySelector('input[name="dim"]:checked').value;
+        const name = document.getElementById('runName').value.trim() || suggestRunName();
+        const payload = {
+          name,
+          dim,
+          ic: document.getElementById('runIc').value,
+          n: parseInt(document.getElementById('runN').value, 10),
+          steps: parseInt(document.getElementById('runSteps').value, 10),
+          dt: parseFloat(document.getElementById('runDt').value),
+          r_max: parseFloat(document.getElementById('runRmax').value),
+          replay_every: parseInt(document.getElementById('runReplayEvery').value, 10),
+          softening: parseFloat(document.getElementById('runSoftening').value),
+          seed: parseInt(document.getElementById('runSeed').value, 10),
+        };
+        const statusEl = document.getElementById('runStatus');
+        statusEl.textContent = 'Running simulation...';
+        fetch(apiBase + '/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+          .then(r => r.json())
+          .then(body => {
+            if (body.ok) {
+              statusEl.textContent = 'Done: ' + body.name;
+              return fetchReplays().then(() => loadReplay('/replays/' + body.name + '.json'));
+            } else {
+              statusEl.textContent = 'Error: ' + (body.error || 'Unknown');
+            }
+          })
+          .catch(err => {
+            statusEl.textContent = 'Error: ' + err.message;
+          });
+      };
+
+      fetchReplays()
+        .then(list => {
+          if (list.length > 0) loadReplay('/replays/' + list[0].name + '.json');
+        })
+        .catch(() => loadReplay('replay.json'));
+    })();
+    animate();
+  </script>
+</body>
+</html>
