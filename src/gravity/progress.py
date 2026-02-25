@@ -35,6 +35,6 @@ def report_progress(
         line = f"  [ {pct_show:3d}%] step {step:5d} / {total_steps:<5d}  ({label})"
         if extra:
             line += "  " + extra
-        print(line)
+        print(line, flush=True)
         return True
     return False
