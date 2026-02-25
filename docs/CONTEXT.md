@@ -1,225 +1,55 @@
-## `README.md`
+# Project Context
 
-```markdown
-# Cosmic Origins
-Visual simulations of how fundamental physical laws give rise to structure in the universe.
+This document summarizes the agreed project plan and how the repo is organized.
 
-## What this project is
-Cosmic Origins is a computational visualization project focused on making abstract physics
-concepts intuitive and visible. Using simplified simulations, we explore how matter evolves
-from early-universe conditions into observable structure.
+## Project title
 
-The project supports two aligned exploration paths:
-1. **Cosmic scale** — how gravity forms the first galaxies
-2. **Particle scale** — how colliders probe early-universe physics
+**Gravitational Simulation of Solar System Formation** (ASTR 311 group project).
 
-Only one path is required; the second may be used as an extension or fallback.
+## Goal
 
-## Why this fits the course
-The course explains *what* we observe (galaxies, dark matter, particles) but does not deeply
-cover *how* these processes can be modeled or explored computationally. This project fills
-that gap using visualization and simulation to reinforce course concepts.
+Build a visual simulation that demonstrates how gravity can organize matter into stable orbital structures over time. We model a simplified system: a central mass (star) and many small particles (disk or cloud initial conditions), using Newtonian gravity only. The result is educational—we observe how structure emerges from gravity alone and discuss limitations relative to real planet formation.
 
-## Project paths
+## Core assumptions
 
-### Path A — Early Galaxy Formation (Primary)
-A visual simulation showing how tiny density fluctuations grow into clumps under gravity,
-demonstrating the origin of proto-galaxies.
+- Newtonian mechanics; point masses; no gas, magnetic fields, or radiation.
+- Gravitational softening to avoid numerical singularities.
+- Emphasis on visual clarity and conceptual understanding.
 
-### Path B — Particle Physics & Colliders (Alternate)
-A visualization-driven model of particle accelerators (inspired by the LHC), exploring how
-collider size relates to achievable energy and what that means for probing early-universe
-conditions.
+## Team and roles (4 members)
 
-## Deliverables
-- A live or recorded simulation demo
-- Visual outputs (plots, animations, or Unity scenes)
-- Short written explanation connecting the simulation to course material
-- Final presentation
+See `docs/work-breakdown.md` for the full breakdown. In brief:
 
-## Team structure (3 people)
-- Physics & concepts
-- Simulation & computation
-- Visualization & presentation
+- **Member 1 – Physics implementation:** Force model, integrator, initial conditions, stability.
+- **Member 2 – Diagnostics and validation:** Energy and angular momentum tracking, stability analysis, documentation.
+- **Member 3 – Performance and scaling:** CPU optimization, profiling, GPU exploration, replay export.
+- **Member 4 – Visualization and presentation:** 3D extension, replay format support, WebGL viewer, presentation.
 
-## Project names
-- Cosmic Origins (primary)
-- ProtoVerse
-- Galactic Dawn
-- Genesis Cluster
-- Big Bang Origins
-- CosmoForge
-```
+All contribute to scientific interpretation, model limitations, and final presentation.
 
----
+## Development phases
 
-## `docs/PROJECT_SCOPE.md`
+1. **Phase 1 – 2D prototype (CPU):** Gravity, integration, disk/cloud ICs, diagnostics, 2D visualization. Target: stable 2D run with 10k–20k particles (or smaller for quick demos).
+2. **Phase 2 – 3D extension:** 3D state and forces, improved visualization and camera.
+3. **Phase 3 – Scaling and optimization:** Higher particle counts (50k–100k+), vectorization, optional GPU (e.g. Numba/CuPy).
+4. **Phase 4 – Web-based visualization:** Replay file format and WebGL viewer for interactive replay.
 
-```markdown
-# Project Scope
+Heavy computation is done offline; the web component is for replay and exploration.
 
-## Core goal
-Create an educational simulation that visually demonstrates how fundamental physics
-processes operate at scales that cannot be directly observed.
+## Hardware (VM)
 
-## Supported project paths
+- **GPU:** NVIDIA RTX A2000, 12 GB VRAM, CUDA 13.1
+- **CPU:** Xeon E5-2643 v4 @ 3.40 GHz, 24 logical cores
+- **RAM:** 31 GB
+- **OS:** AlmaLinux 10.1
 
-### Path A — Cosmic Structure Formation
-We simulate collisionless particles interacting through gravity to demonstrate how
-early-universe density perturbations evolve into clustered structures.
+## Key docs
 
-Included:
-- Gravitational interaction
-- Simple initial perturbations
-- Visual clustering over time
-
-Excluded:
-- Hydrodynamics
-- Star formation
-- Relativistic effects
-
-### Path B — Particle Colliders
-We simulate conceptual particle acceleration and collisions to illustrate how collider
-size affects energy and discovery potential.
-
-Included:
-- Particle acceleration paths
-- Energy scaling with radius
-- Collision probability visualization
-
-Excluded:
-- Full quantum field theory
-- Exact Standard Model predictions
-
-## Constraints
-- Educational accuracy over experimental precision
-- Visual clarity over physical completeness
-- Stable, demonstrable output over maximum realism
-
-## Definition of success
-- Simulation runs reliably
-- Concepts are visually understandable
-- Clear connection to course topics is demonstrated
-```
-
----
-
-## `docs/MILESTONES.md`
-
-```markdown
-# Project Milestones
-
-## Week 1 — Foundations
-- Finalize which path to pursue (A or B)
-- Set up repository and environment
-- Basic visualization prototype
-
-## Week 2 — Physics Model
-Path A:
-- Implement gravitational interaction
-- Test small particle counts
-
-Path B:
-- Implement particle motion and acceleration
-- Visualize energy scaling
-
-## Week 3–4 — Simulation & Visualization
-- Improve stability and visuals
-- Add parameter controls (particle count, scale, energy)
-- Begin capturing output for presentation
-
-## Week 5 — Analysis & Interpretation
-- Connect simulation behavior to course concepts
-- Prepare explanatory diagrams
-
-## Week 6–7 — Finalization
-- Polish visuals
-- Write final explanation
-- Prepare presentation demo
-```
-
----
-
-## `docs/PHYSICS_NOTES.md`
-
-```markdown
-# Physics Notes (Simplified Models)
-
-## Path A — Gravity & Structure Formation
-
-We model matter as particles interacting through Newtonian gravity.
-
-Acceleration:
-a_i = G * Σ m_j (r_j - r_i) / (|r_j - r_i|^2 + ε^2)^(3/2)
-
-- ε (softening) prevents singularities
-- Units are normalized for visualization
-- Focus is on pattern formation, not exact prediction
-
-## Path B — Particle Colliders
-
-We model particles as classical objects accelerated along a circular path.
-
-Key ideas:
-- Larger collider radius → higher achievable energy
-- Energy determines what particle interactions become possible
-- Colliders probe conditions similar to the early universe
-
-We emphasize **scaling behavior**, not exact quantum outcomes.
-```
-
----
-
-## `docs/ARCHITECTURE.md`
-
-```markdown
-# Project Architecture
-
-src/
-  main.py              # Entry point
-  config.py            # Global parameters
-
-  cosmic/
-    init_conditions.py
-    gravity.py
-    integrator.py
-    visualize.py
-
-  collider/
-    accelerator.py
-    collision_model.py
-    visualize.py
-
-viz/
-  plots/
-  animations/
-
-docs/
-outputs/
-
-## Notes
-- Only one of cosmic/ or collider/ must be implemented
-- Shared visualization tools are encouraged
-- Code is a means to explanation, not the final goal
-```
-
----
-
-## `docs/PROPOSAL_ONE_PAGER.md` (Instructor-facing)
-
-```markdown
-# Cosmic Origins — Project Proposal
-
-We propose creating a visual simulation to explore how fundamental physical laws shape the
-universe at scales that cannot be directly observed.
-
-Our project will focus on either:
-1. The formation of early galaxies from small density fluctuations, or
-2. The role of particle colliders in probing early-universe physics.
-
-Using simplified computational models, we aim to make these abstract processes visually
-intuitive and easier to understand. The project emphasizes conceptual clarity, not
-experimental precision, and directly supports topics covered in the course.
-
-The final result will be a demonstrable simulation and presentation illustrating how matter
-organizes itself from the smallest to the largest scales.
+- **docs/project-outline.md** – Overview, concepts, phases, success criteria, VM specs.
+- **docs/work-breakdown.md** – Detailed work breakdown and member roles.
+- **docs/DEVELOPMENT_STRATEGY.md** – Phase-by-phase development approach.
+- **docs/PROJECT_SCOPE.md** – In-scope / out-of-scope, success criteria.
+- **docs/ARCHITECTURE.md** – Source layout and modules.
+- **docs/PHYSICS_NOTES.md** – Equations, softening, disk ICs, conservation.
+- **docs/MILESTONES.md** – Phase milestones.
+- **docs/TASKS.md** – Phase 1 task list.

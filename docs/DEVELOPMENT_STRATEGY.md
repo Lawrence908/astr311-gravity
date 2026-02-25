@@ -1,79 +1,52 @@
-# Development Strategy: Cosmic Origins
+# Development Strategy: Gravitational Simulation of Solar System Formation
 
-## Project Philosophy
-Cosmic Origins is designed as a **single, unified project** that explores how fundamental
-physical laws shape the universe across vastly different scales.
+## Project focus
 
-The project intentionally spans:
-- **Cosmic scales** (early structure and galaxy formation)
-- **Subatomic scales** (particle physics and collider experiments)
+Single project: a **gravitational simulation of solar system formation**. We model a central star and many particles (disk or cloud initial conditions) under Newtonian gravity, with the goal of observing how orbital structure emerges and explaining both the physics and the limitations.
 
-Both components address the same core question:
-> How do simple physical rules give rise to the complex universe we observe?
+## Four-phase plan
 
----
+Development follows the computational plan in `docs/project-outline.md`:
 
-## Core Structure
-The project is organized into two tightly related components:
+### Phase 1 — 2D prototype (CPU)
 
-### Path A — Early Universe Structure Formation (Foundational Component)
-Path A serves as the **foundational simulation** of the project.
+- Implement gravity (Newtonian + softening) and numerical integration (Leapfrog or Velocity Verlet) in 2D.
+- Implement central mass and particle disk / cloud initial conditions.
+- Add diagnostics: total kinetic and potential energy, angular momentum.
+- Validate: stable orbits, conservation behavior, bounded motion.
+- Deliver: stable 2D CPU simulation with configurable parameters and basic 2D visualization.
 
-We will:
-- Model matter as particles interacting through gravity
-- Begin from near-uniform initial conditions with small perturbations
-- Visually demonstrate how structure emerges over time
+### Phase 2 — 3D extension
 
-This component is:
-- Fully achievable within the project timeline
-- Directly aligned with course material
-- Sufficient on its own to satisfy all project requirements
+- Extend particle state and force calculation to 3D.
+- Improve visualization and camera control.
+- Begin increasing particle count where feasible.
 
----
+### Phase 3 — Scaling and optimization
 
-### Path B — Particle Physics & Collider Visualization (Critical Extension)
-Path B is included as **critical project work**, not a bonus or afterthought.
+- Increase particle count toward 10k–50k (early) and 50k–100k+ (mid/later).
+- Vectorize force calculations (NumPy); profile and benchmark.
+- Optionally explore GPU (e.g. Numba, CuPy) only after correctness is established.
 
-This component explores:
-- How particle accelerators probe early-universe conditions
-- How collider size relates to achievable energies
-- Conceptual models of future colliders (continental or planetary scale)
+### Phase 4 — Web-based visualization
 
-Path B is explicitly **exploratory**:
-- The goal is conceptual understanding and visualization
-- Not experimental accuracy or full quantum simulation
-- Partial implementation is acceptable and expected
+- Export simulation data (positions over time) in a defined replay format.
+- Build a client-side WebGL viewer to load and replay data with camera and timeline controls.
+- Computation stays offline; the web app is for interaction and presentation.
 
-We recognize that Path B involves greater complexity, and the project is scoped such that:
-- Meaningful progress constitutes success
-- Incomplete implementation does not invalidate the project
-- Limitations will be clearly documented and discussed
+## Team roles (4 members)
 
----
+See `docs/work-breakdown.md` for full detail. Summary:
 
-## Why Both Paths Belong in the Same Project
-These two paths are not separate projects, but complementary perspectives on the same physics:
+- **Physics implementation lead:** Force model, integrator, initial conditions, stability tuning.
+- **Diagnostics and validation:** Energy and angular momentum tracking, stability analysis, parameter experiments, documentation.
+- **Performance and scaling:** CPU optimization, profiling, GPU exploration if pursued, replay export.
+- **Visualization and presentation:** 3D extension, replay format support, WebGL viewer, presentation and demo.
 
-| Path A | Path B |
-|------|------|
-| Gravity-dominated | Energy-dominated |
-| Large-scale structure | Subatomic structure |
-| Observed outcomes | Experimental probes |
-| Late-universe consequences | Early-universe conditions |
+All members contribute to scientific interpretation, model limitations, and final presentation.
 
-Together, they provide a more complete picture of how physics operates across scale.
+## Principles
 
----
-
-## Development Approach
-1. Begin with Path A to establish:
-   - Simulation framework
-   - Visualization pipeline
-   - Conceptual grounding
-
-2. Progress into Path B using:
-   - The same computational mindset
-   - Shared visualization techniques
-   - Simplified physical models
-
-3. Evaluate feasibility continuously and adapt scope responsibly.
+- Correctness and clarity before optimization.
+- Educational accuracy and honest discussion of simplifications.
+- Stable, demonstrable runs over maximum realism.

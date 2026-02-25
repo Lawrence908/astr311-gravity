@@ -2,11 +2,12 @@
 
 Source layout (flat `src/`):
 
-- `src/main.py` – tiny CLI entry stub.
-- `src/config.py` – shared configuration dataclasses.
-- `src/common/` – logging and other simple utilities.
-- `src/path_a_cosmic/` – early-universe gravity demo (Path A).
-- `src/path_b_collider/` – collider models (Path B).
+- `src/main.py` – CLI entry stub.
+- `src/config.py` – shared configuration (simulation parameters, central mass, initial conditions).
+- `src/common/` – logging and other utilities.
+- `src/gravity/` – gravitational simulation (Phase 1: 2D; Phase 2: 3D).
+
+Future: replay export and a client-side WebGL viewer (separate layer loading exported data).
 
 ```mermaid
 flowchart TD
@@ -14,22 +15,30 @@ flowchart TD
   mainFile[main.py]
   cfg[config.py]
   common[common/]
-  pathA[path_a_cosmic/]
-  pathB[path_b_collider/]
+  gravityMod[gravity/]
 
   src --> mainFile
   src --> cfg
   src --> common
-  src --> pathA
-  src --> pathB
+  src --> gravityMod
 
-  pathA --> stateA[state.py]
-  pathA --> forcesA[forces_cpu.py]
-  pathA --> integA[integrators.py]
-  pathA --> vizA[viz_*]
-
-  pathB --> modelsB[models.py]
-  pathB --> numericsB[numerics.py]
-  pathB --> vizB[viz.py]
+  gravityMod --> stateMod[state.py]
+  gravityMod --> forcesMod[forces_cpu.py]
+  gravityMod --> initMod[init_conditions.py]
+  gravityMod --> integMod[integrators.py]
+  gravityMod --> diagMod[diagnostics.py]
+  gravityMod --> vizMod[viz_live.py]
+  gravityMod --> demoMod[demo_2d.py]
 ```
 
+## gravity
+
+- **state.py** – `ParticleState` (positions, velocities, masses); central star is particle index 0.
+- **forces_cpu.py** – Newtonian gravity with softening (loop and vectorized).
+- **init_conditions.py** – `make_disk_2d`, `make_cloud_2d`, `make_uniform_2d`.
+- **integrators.py** – Euler and Leapfrog.
+- **diagnostics.py** – kinetic/potential energy, angular momentum, `SimulationLog`.
+- **viz_live.py** – live 2D scatter (star + particles, optional coloring).
+- **demo_2d.py** – run loop with CLI, diagnostics, live viz.
+
+Outputs go under `outputs/frames/` and `outputs/runs/` as needed.
