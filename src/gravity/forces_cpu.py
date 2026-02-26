@@ -2,6 +2,8 @@
 
 Loop and vectorized O(N^2) gravity with softened Newtonian potential.
 Works for positions of shape (N, 2) or (N, 3).
+
+Optional GPU path (CuPy/Numba CUDA) for large N: see docs/GPU.md.
 """
 
 from __future__ import annotations

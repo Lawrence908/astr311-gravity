@@ -18,6 +18,7 @@ def make_disk_2d(
     n_particles: int,
     seed: int | None = None,
     M_star: float = 1.0,
+    m_particle: float | None = None,
     r_min: float = 0.5,
     r_max: float = 2.0,
     G: float = G_DEFAULT,
@@ -37,7 +38,10 @@ def make_disk_2d(
     seed : int or None
         Random seed for positions and perturbations.
     M_star : float
-        Mass of the central star.
+        Mass of the central star (code units).
+    m_particle : float or None
+        Mass per disk particle (code units). If None, uses 1/(n_particles+1) so
+        total mass = 1 (backward compatible).
     r_min, r_max : float
         Inner and outer radius of the annulus.
     G : float
@@ -73,8 +77,9 @@ def make_disk_2d(
     velocities = np.column_stack([vx, vy]).astype(float)
     velocities += velocity_noise * v_circ[:, None] * rng.normal(size=(n_particles, 2))
 
-    # Equal mass particles (total disk mass small relative to star if desired)
-    m_particle = 1.0 / n_total  # or e.g. (1 - M_star) / n_particles for fixed total
+    # Mass per particle: explicit or backward-compatible default
+    if m_particle is None:
+        m_particle = 1.0 / n_total
     masses_disk = np.full(n_particles, m_particle, dtype=float)
 
     positions = np.vstack([star_pos, positions])
@@ -88,6 +93,7 @@ def make_cloud_2d(
     n_particles: int,
     seed: int | None = None,
     M_star: float = 1.0,
+    m_particle: float | None = None,
     r_max: float = 2.0,
     angular_fraction: float = 0.5,
     G: float = G_DEFAULT,
@@ -106,7 +112,9 @@ def make_cloud_2d(
     seed : int or None
         Random seed.
     M_star : float
-        Mass of the central star.
+        Mass of the central star (code units).
+    m_particle : float or None
+        Mass per cloud particle (code units). If None, uses 1/(n_particles+1).
     r_max : float
         Maximum radius for cloud particles.
     angular_fraction : float
@@ -134,7 +142,8 @@ def make_cloud_2d(
     vy = v_tangent * np.cos(theta)
     velocities = np.column_stack([vx, vy]).astype(float)
 
-    m_particle = 1.0 / n_total
+    if m_particle is None:
+        m_particle = 1.0 / n_total
     masses_disk = np.full(n_particles, m_particle, dtype=float)
 
     positions = np.vstack([star_pos, positions])
@@ -148,6 +157,7 @@ def make_disk_3d(
     n_particles: int,
     seed: int | None = None,
     M_star: float = 1.0,
+    m_particle: float | None = None,
     r_min: float = 0.5,
     r_max: float = 2.0,
     thickness: float = 0.05,
@@ -159,6 +169,7 @@ def make_disk_3d(
 
     Same as make_disk_2d but with small z-extent (thickness) and vz perturbations.
     Particle 0 is the star. Positions and velocities have shape (N, 3).
+    m_particle: mass per disk particle (code units); if None, uses 1/(n_particles+1).
     """
     rng = np.random.default_rng(seed)
     n_total = n_particles + 1
@@ -185,7 +196,8 @@ def make_disk_3d(
     velocities = np.column_stack([vx, vy, vz]).astype(float)
     velocities += velocity_noise * v_circ[:, None] * rng.normal(size=(n_particles, 3))
 
-    m_particle = 1.0 / n_total
+    if m_particle is None:
+        m_particle = 1.0 / n_total
     masses_disk = np.full(n_particles, m_particle, dtype=float)
 
     positions = np.vstack([star_pos, positions])
@@ -199,6 +211,7 @@ def make_cloud_3d(
     n_particles: int,
     seed: int | None = None,
     M_star: float = 1.0,
+    m_particle: float | None = None,
     r_max: float = 2.0,
     angular_fraction: float = 0.5,
     G: float = G_DEFAULT,
@@ -207,6 +220,7 @@ def make_cloud_3d(
 
     Particles 1..n are placed uniformly in a ball of radius r_max, with tangential
     velocity angular_fraction * v_circ. Positions and velocities have shape (N, 3).
+    m_particle: mass per particle (code units); if None, uses 1/(n_particles+1).
     """
     rng = np.random.default_rng(seed)
     n_total = n_particles + 1
@@ -233,7 +247,8 @@ def make_cloud_3d(
     vz = np.zeros(n_particles, dtype=float)
     velocities = np.column_stack([vx, vy, vz]).astype(float)
 
-    m_particle = 1.0 / n_total
+    if m_particle is None:
+        m_particle = 1.0 / n_total
     masses_disk = np.full(n_particles, m_particle, dtype=float)
 
     positions = np.vstack([star_pos, positions])

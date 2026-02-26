@@ -17,8 +17,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+from .collisions import resolve_collisions
 from .diagnostics import SimulationLog, compute_angular_momentum, compute_total_energy
-from .forces_cpu import compute_accelerations_vectorized
 from .init_conditions import make_cloud_2d, make_disk_2d
 from .integrators import leapfrog_step
 from .progress import report_progress
@@ -28,11 +28,9 @@ from .viz_export import save_frame
 from .viz_live import LiveScatter2D
 
 
-def _make_accel_fn(softening: float = 0.05, G: float = 1.0):
+def _make_accel_fn(compute_fn, softening: float = 0.05, G: float = 1.0):
     def accel_fn(state: ParticleState):
-        return compute_accelerations_vectorized(
-            state, softening=softening, G=G
-        )
+        return compute_fn(state, softening=softening, G=G)
 
     return accel_fn
 
@@ -45,6 +43,7 @@ def run_demo(
     ic: str = "disk",
     seed: int | None = 42,
     M_star: float = 1.0,
+    m_particle: float | None = None,
     r_min: float = 0.5,
     r_max: float = 2.0,
     log_interval: int = 50,
@@ -57,6 +56,9 @@ def run_demo(
     diagnostics_path: str | None = None,
     replay_path: str | None = None,
     replay_every: int = 10,
+    use_gpu: bool = False,
+    collisions: bool = False,
+    r_collide: float | None = None,
 ) -> None:
     """Run 2D gravity demo with central star, disk or cloud ICs, and diagnostics.
 
@@ -70,7 +72,20 @@ def run_demo(
     diagnostics_path: if set, save E and Lz vs step plot to this path after the run.
     replay_path: if set, save replay .npz to this path (positions at replay_every steps).
     replay_every: save a snapshot every this many steps when replay_path is set.
+    use_gpu: if True, use CuPy for force computation (requires cupy-cuda12x and a GPU).
+    collisions: if True, resolve inelastic mergers (particle–star and particle–particle) each step.
+    r_collide: collision radius when collisions=True; default 2.0 * softening.
     """
+    if use_gpu:
+        try:
+            from .forces_gpu import compute_accelerations_vectorized
+        except RuntimeError as e:
+            raise SystemExit(e) from e
+    else:
+        from .forces_cpu import compute_accelerations_vectorized
+    accel_fn = _make_accel_fn(compute_accelerations_vectorized, softening=softening)
+    if r_collide is None and collisions:
+        r_collide = 2.0 * softening
     if frames_dir is None:
         frames_dir = "outputs/frames"
     if save_every is None:
@@ -78,16 +93,15 @@ def run_demo(
 
     if ic == "disk":
         state = make_disk_2d(
-            n_particles, seed=seed, M_star=M_star, r_min=r_min, r_max=r_max
+            n_particles, seed=seed, M_star=M_star, m_particle=m_particle, r_min=r_min, r_max=r_max
         )
     elif ic == "cloud":
         state = make_cloud_2d(
-            n_particles, seed=seed, M_star=M_star, r_max=r_max
+            n_particles, seed=seed, M_star=M_star, m_particle=m_particle, r_max=r_max
         )
     else:
         raise ValueError(f"Unknown ic={ic!r}; use 'disk' or 'cloud'")
 
-    accel_fn = _make_accel_fn(softening=softening)
     sim_log = SimulationLog()
     frames_path = Path(frames_dir) if save_frames else None
     if save_frames:
@@ -98,10 +112,13 @@ def run_demo(
         plt.ion()
     last_E, last_L = None, None
     replay_positions: list[np.ndarray] = []
+    replay_masses_list: list[np.ndarray] = []  # used when collisions=True (variable N)
     replay_steps: list[int] = []
 
     for step in range(n_steps):
         state = leapfrog_step(state, dt=dt, accel_fn=accel_fn)
+        if collisions and r_collide is not None:
+            state = resolve_collisions(state, r_collide, star_index=0)
 
         if step % log_interval == 0:
             sim_log.append(step, state, softening=softening, G=1.0)
@@ -126,6 +143,8 @@ def run_demo(
 
         if replay_path is not None and step % replay_every == 0:
             replay_positions.append(state.positions.copy())
+            if collisions:
+                replay_masses_list.append(state.masses.copy())
             replay_steps.append(step)
 
     # Final log entry and 100% progress
@@ -144,16 +163,30 @@ def run_demo(
 
     if replay_path is not None:
         replay_positions.append(state.positions.copy())
+        if collisions:
+            replay_masses_list.append(state.masses.copy())
         replay_steps.append(n_steps)
-        save_replay(
-            replay_path,
-            positions_list=replay_positions,
-            step_indices=replay_steps,
-            masses=state.masses,
-            dt=dt,
-            softening=softening,
-            G=1.0,
-        )
+        if collisions and replay_masses_list:
+            save_replay(
+                replay_path,
+                positions_list=replay_positions,
+                step_indices=replay_steps,
+                masses=state.masses,
+                dt=dt,
+                softening=softening,
+                G=1.0,
+                masses_per_snapshot=replay_masses_list,
+            )
+        else:
+            save_replay(
+                replay_path,
+                positions_list=replay_positions,
+                step_indices=replay_steps,
+                masses=state.masses,
+                dt=dt,
+                softening=softening,
+                G=1.0,
+            )
         print(f"Replay saved to {replay_path} ({len(replay_positions)} snapshots)")
 
     if diagnostics_path is not None:
@@ -184,7 +217,8 @@ def main() -> None:
         help="Initial condition: disk or cloud",
     )
     p.add_argument("--seed", type=int, default=42, help="Random seed")
-    p.add_argument("--M_star", type=float, default=1.0, help="Central star mass")
+    p.add_argument("--M_star", type=float, default=1.0, help="Central star mass (code units)")
+    p.add_argument("--m-particle", type=float, default=None, dest="m_particle", metavar="M", help="Mass per disk/cloud particle (code units); default 1/(N+1)")
     p.add_argument("--r_min", type=float, default=0.5, help="Disk inner radius (disk IC)")
     p.add_argument("--r_max", type=float, default=2.0, help="Disk/cloud outer radius")
     p.add_argument("--save-frames", action="store_true", help="Save PNG frames to outputs/frames (or --frames-dir)")
@@ -194,6 +228,9 @@ def main() -> None:
     p.add_argument("--save-diagnostics", type=str, default=None, metavar="PATH", help="Save E and Lz vs step plot to PATH (e.g. outputs/diagnostics.png)")
     p.add_argument("--save-replay", type=str, default=None, metavar="PATH", help="Save replay .npz to PATH (e.g. outputs/runs/run.npz)")
     p.add_argument("--replay-every", type=int, default=10, metavar="N", help="Save a snapshot every N steps when using --save-replay")
+    p.add_argument("--gpu", action="store_true", help="Use GPU for forces (requires CuPy and a CUDA GPU)")
+    p.add_argument("--collisions", action="store_true", help="Enable inelastic mergers (particle–star and particle–particle)")
+    p.add_argument("--r-collide", type=float, default=None, metavar="R", help="Collision radius when --collisions (default 2*softening)")
     args = p.parse_args()
 
     run_demo(
@@ -203,6 +240,7 @@ def main() -> None:
         ic=args.ic,
         seed=args.seed,
         M_star=args.M_star,
+        m_particle=args.m_particle,
         r_min=args.r_min,
         r_max=args.r_max,
         viz_every=args.viz_every,
@@ -214,6 +252,9 @@ def main() -> None:
         diagnostics_path=args.save_diagnostics,
         replay_path=args.save_replay,
         replay_every=args.replay_every,
+        use_gpu=args.gpu,
+        collisions=args.collisions,
+        r_collide=args.r_collide,
     )
 
 
