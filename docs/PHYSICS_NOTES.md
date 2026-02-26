@@ -47,10 +47,19 @@ Tangential velocity is set from this in disk initial conditions (with small rand
 
 Both include the central star as particle 0 (mass M_star, at origin, zero velocity).
 
+## Collisions (optional)
+
+When collisions are enabled (e.g. `--collisions`), the simulation resolves **inelastic mergers** each step:
+
+- **Collision radius** r_collide: any pair with separation &lt; r_collide is merged (default typically 2× softening).
+- **Particle–star:** a particle within r_collide of the star is absorbed (star mass increases, particle removed). Star position/velocity unchanged (toy: star dominates).
+- **Particle–particle:** the pair is merged into one body at the centre of mass, with momentum-conserving velocity; one particle is removed.
+- **Mass and momentum** are conserved at each merge; **total energy** is not (inelastic). Angular momentum is conserved. This is a toy assumption for “how solar systems react to collisions.”
+
 ## What we do not include
 
 - Gas dynamics, magnetic fields, radiation.
 - Relativistic effects.
-- Collisions or fragmentation.
+- Fragmentation (splitting of bodies).
 
-We explicitly discuss these simplifications and how they differ from real planetary formation.
+Collisions/mergers are optional; when disabled, we do not include collisions or fragmentation. We explicitly discuss these simplifications and how they differ from real planetary formation.

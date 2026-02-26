@@ -23,3 +23,5 @@ Run `gravity.benchmark` on your machine to obtain actual timings and adjust targ
 ## Optional: GPU and Numba
 
 GPU acceleration (e.g. Numba CUDA or CuPy) and Numba `@njit` for the loop-based force kernel are optional extensions. Optimize only after the CPU reference is correct and profiled.
+
+**When to consider GPU:** For large N (roughly 20k+ particles), a GPU can give a substantial speedup; for N in the 1k–10k range, CPU is usually sufficient. See **docs/GPU.md** for when GPU helps and how to add it later.
