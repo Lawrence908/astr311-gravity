@@ -37,6 +37,15 @@ class SimServerHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(WEB_VIEWER), **kwargs)
 
     def log_message(self, format, *args):
+        # Suppress noisy GET 200/304 for page, static assets, and replay list (browser polling).
+        # Still log POST/DELETE and any errors so runs and failures are visible.
+        if len(args) >= 2:
+            requestline, code = args[0], str(args[1])
+            if code in ("200", "304") and requestline.startswith("GET "):
+                raw_path = requestline.split(None, 2)[1] if len(requestline.split(None, 2)) > 1 else ""
+                path = raw_path.split("?")[0]
+                if path in ("/", "/api/replays") or path.startswith("/replays/"):
+                    return
         print(format % args)
 
     def send_json(self, obj: dict, status: int = 200) -> None:
@@ -103,18 +112,31 @@ class SimServerHandler(SimpleHTTPRequestHandler):
             if ic not in ("disk", "cloud"):
                 ic = "disk"
             n = max(1, min(10000, int(params.get("n", 500))))
-            steps = max(1, min(100000, int(params.get("steps", 1000))))
+            steps = max(1, min(1_000_000, int(params.get("steps", 1000))))
             dt = float(params.get("dt", 0.01))
             r_max = float(params.get("r_max", 2.0))
             replay_every = max(1, min(1000, int(params.get("replay_every", 20))))
+            # Cap snapshots so the exported JSON stays loadable in the browser (~2000 snapshots)
+            MAX_SNAPSHOTS = 2000
+            n_snapshots_cap = 1 + (steps // replay_every)
+            if n_snapshots_cap > MAX_SNAPSHOTS:
+                replay_every = max(replay_every, (steps + MAX_SNAPSHOTS - 2) // (MAX_SNAPSHOTS - 1))
             softening = float(params.get("softening", 0.05))
             seed = int(params.get("seed", 42))
+            use_gpu = bool(params.get("gpu", False))
+            M_star = float(params.get("M_star", 1.0))
+            m_particle = params.get("m_particle")  # None = use default 1/(N+1) in demos
+            if m_particle is not None:
+                m_particle = float(m_particle)
+            collisions = bool(params.get("collisions", False))
+            r_collide = params.get("r_collide")
+            if r_collide is not None:
+                r_collide = float(r_collide)
 
             REPLAYS_DIR.mkdir(parents=True, exist_ok=True)
             out_json = REPLAYS_DIR / f"{name}.json"
-
-            with tempfile.NamedTemporaryFile(suffix=".npz", delete=False, dir=REPO_ROOT) as f:
-                temp_npz = f.name
+            # Keep .npz in replays/ so you can thin later with tools/thin_replay.py
+            temp_npz = REPLAYS_DIR / f"{name}.npz"
 
             try:
                 python = sys.executable
@@ -130,7 +152,14 @@ class SimServerHandler(SimpleHTTPRequestHandler):
                         "--r-max", str(r_max),
                         "--ic", ic,
                         "--seed", str(seed),
+                        "--M_star", str(M_star),
                     ]
+                    if m_particle is not None:
+                        cmd.extend(["--m-particle", str(m_particle)])
+                    if collisions:
+                        cmd.append("--collisions")
+                        if r_collide is not None:
+                            cmd.extend(["--r-collide", str(r_collide)])
                 else:
                     cmd = [
                         python, "-m", "gravity.demo_3d",
@@ -141,13 +170,23 @@ class SimServerHandler(SimpleHTTPRequestHandler):
                         "--steps", str(steps),
                         "--dt", str(dt),
                         "--r-max", str(r_max),
+                        "--M_star", str(M_star),
                     ]
+                    if m_particle is not None:
+                        cmd.extend(["--m-particle", str(m_particle)])
+                    if collisions:
+                        cmd.append("--collisions")
+                        if r_collide is not None:
+                            cmd.extend(["--r-collide", str(r_collide)])
+                if use_gpu:
+                    cmd.append("--gpu")
                 # Don't capture output: demo progress (report_progress, print) streams to
                 # server stdout so it appears in container logs (e.g. docker compose logs -f).
+                # Timeout 24h for long runs (e.g. 1M steps, 5k particles can take many hours).
                 result = subprocess.run(
                     cmd,
                     cwd=str(SRC_DIR),
-                    timeout=600,
+                    timeout=86400,
                 )
                 if result.returncode != 0:
                     self.send_json({
@@ -157,9 +196,9 @@ class SimServerHandler(SimpleHTTPRequestHandler):
                     return
 
                 export_result = subprocess.run(
-                    [python, str(TOOLS_DIR / "export_replay_to_json.py"), temp_npz, str(out_json)],
+                    [python, str(TOOLS_DIR / "export_replay_to_json.py"), str(temp_npz), str(out_json)],
                     cwd=str(REPO_ROOT),
-                    timeout=60,
+                    timeout=600,
                 )
                 if export_result.returncode != 0:
                     self.send_json({
@@ -169,12 +208,15 @@ class SimServerHandler(SimpleHTTPRequestHandler):
                     return
 
                 n_snapshots = 1 + (steps // replay_every)
-                self.send_json({"ok": True, "name": name, "n_snapshots": n_snapshots})
+                self.send_json({
+                    "ok": True,
+                    "name": name,
+                    "n_snapshots": n_snapshots,
+                    "replay_every": replay_every,
+                })
             finally:
-                try:
-                    os.unlink(temp_npz)
-                except OSError:
-                    pass
+                # Optionally remove .npz to save space (keep it by default for thinning)
+                pass
             return
 
         return SimpleHTTPRequestHandler.do_GET(self)
