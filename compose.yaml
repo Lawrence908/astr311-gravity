@@ -19,7 +19,17 @@ services:
       - PYTHONPATH=/app/src
       - PYTHONUNBUFFERED=1
     volumes:
-      - replays:/app/web-viewer/replays
+      # Bind mount web-viewer/replays so container and host share the same replays.
+      # Existing runs in web-viewer/replays are visible; new runs are saved there.
+      - ./web-viewer/replays:/app/web-viewer/replays
+    # GPU passthrough (requires NVIDIA Container Toolkit on host; optional for CPU-only runs)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/')\" || exit 1"]
       interval: 30s
@@ -27,5 +37,7 @@ services:
       retries: 3
       start_period: 40s
 
-volumes:
-  replays:
+# Optional: use a named volume instead (replays live in Docker volume, not in web-viewer/replays):
+#   - replays:/app/web-viewer/replays
+# volumes:
+#   replays:

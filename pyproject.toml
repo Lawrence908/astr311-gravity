@@ -16,7 +16,11 @@ requires-python = ">=3.10"
 dependencies = [
   "numpy",
   "matplotlib",
+  "cupy-cuda12x",
 ]
+
+[project.optional-dependencies]
+gpu = ["cupy-cuda12x"]
 
 # No console scripts or complex packaging yet; we'll keep usage simple.
 
