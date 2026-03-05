@@ -29,6 +29,16 @@ Use the **control panel** (top-right):
 
 Replays are stored in `web-viewer/replays/` as JSON files (free-form names).
 
+## Public showcase (view-only, no running simulations)
+
+**`showcase.html`** is a view-only version of the viewer: same 3D replay controls (timeline, play, speed, trails, view presets) but **no “New Simulation” panel, no Run, and no Delete**. Use it to share the project publicly (e.g. portfolio) without exposing simulation creation or compute.
+
+- **Same container:** The server serves both `index.html` (full app) and `showcase.html`. Expose only the showcase URL publicly (e.g. `https://yoursite.com/showcase.html` or `https://showcase.yoursite.com` → `/showcase.html`). In your reverse proxy (Caddy, nginx, Traefik), allow only:
+  - `GET /showcase.html`
+  - `GET /replays/*` and `GET /api/replays`
+  - Block `GET /`, `GET /index.html`, `POST /api/run`, and `DELETE /api/replays/*` for the public host so the full app and run/delete APIs are not reachable.
+- **Optional – maximum isolation:** Run a second container that serves only static files (e.g. nginx) with `showcase.html` and a copy of the replay JSONs you want to show. No Python, no `/api/run`. Point the public URL only at this container.
+
 ## Manual workflow (no server)
 
 1. Generate a replay and export to JSON.

@@ -31,7 +31,9 @@ def main() -> None:
     p.add_argument("--dt", type=float, default=0.01, help="Timestep")
     p.add_argument("--M_star", type=float, default=1.0, help="Central star mass (code units)")
     p.add_argument("--m-particle", type=float, default=None, dest="m_particle", metavar="M", help="Mass per disk particle (code units); default 1/(N+1)")
+    p.add_argument("--r-min", type=float, default=0.5, dest="r_min", help="Disk inner radius")
     p.add_argument("--r-max", type=float, default=2.0, dest="r_max", help="Disk outer radius")
+    p.add_argument("--softening", type=float, default=0.05, help="Gravitational softening length ε")
     p.add_argument("--viz-every", type=int, default=2, help="Update plot every N steps")
     p.add_argument("--save-replay", type=str, default=None, metavar="PATH", help="Save replay .npz (3D positions) for web viewer")
     p.add_argument("--replay-every", type=int, default=10, metavar="N", help="Save snapshot every N steps when using --save-replay")
@@ -41,10 +43,10 @@ def main() -> None:
     p.add_argument("--r-collide", type=float, default=None, metavar="R", help="Collision radius when --collisions (default 2*softening)")
     args = p.parse_args()
 
-    softening = 0.05
+    softening = args.softening
     r_collide = args.r_collide
     if r_collide is None and args.collisions:
-        r_collide = 2.0 * softening
+        r_collide = 1.0 * softening  # small so only close pairs merge; larger values over-merge dense disks
 
     if args.gpu:
         try:
@@ -60,13 +62,13 @@ def main() -> None:
         seed=42,
         M_star=args.M_star,
         m_particle=args.m_particle,
-        r_min=0.5,
+        r_min=args.r_min,
         r_max=args.r_max,
         thickness=0.05,
     )
 
     def accel_fn(s: ParticleState):
-        return compute_accelerations_vectorized(s, softening=0.05, G=1.0)
+        return compute_accelerations_vectorized(s, softening=softening, G=1.0)
 
     replay_positions = []
     replay_masses_list = []
@@ -83,7 +85,7 @@ def main() -> None:
         if args.collisions and r_collide is not None:
             state = resolve_collisions(state, r_collide, star_index=0)
         if step % 10 == 0:
-            last_E = compute_total_energy(state, softening=0.05, G=1.0)
+            last_E = compute_total_energy(state, softening=softening, G=1.0)
             last_L = compute_angular_momentum(state)
         report_progress(step, total_steps, "3D demo")
         if show_live and step % args.viz_every == 0:
@@ -110,7 +112,7 @@ def main() -> None:
                 step_indices=replay_steps_list,
                 masses=state.masses,
                 dt=args.dt,
-                softening=0.05,
+                softening=softening,
                 G=1.0,
                 masses_per_snapshot=replay_masses_list,
             )
@@ -121,7 +123,7 @@ def main() -> None:
                 step_indices=replay_steps_list,
                 masses=state.masses,
                 dt=args.dt,
-                softening=0.05,
+                softening=softening,
                 G=1.0,
             )
         print(f"Replay saved to {args.save_replay} ({len(replay_positions)} snapshots, 3D)")

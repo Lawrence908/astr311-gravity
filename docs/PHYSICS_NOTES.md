@@ -51,10 +51,10 @@ Both include the central star as particle 0 (mass M_star, at origin, zero veloci
 
 When collisions are enabled (e.g. `--collisions`), the simulation resolves **inelastic mergers** each step:
 
-- **Collision radius** r_collide: any pair with separation &lt; r_collide is merged (default typically 2× softening).
+- **Collision radius** r_collide: any pair with separation &lt; r_collide is merged. Default is **1× softening** so only genuinely close pairs merge. A larger r_collide (e.g. 2× softening) causes rapid over-merging in dense disks: most particles merge away in few steps and the file becomes very small with few bodies; keep it small for gradual “chunking” and many particles.
 - **Particle–star:** a particle within r_collide of the star is absorbed (star mass increases, particle removed). Star position/velocity unchanged (toy: star dominates).
 - **Particle–particle:** the pair is merged into one body at the centre of mass, with momentum-conserving velocity; one particle is removed.
-- **Mass and momentum** are conserved at each merge; **total energy** is not (inelastic). Angular momentum is conserved. This is a toy assumption for “how solar systems react to collisions.”
+- **Mass and momentum** are conserved at each merge; **total energy** is not (inelastic). Angular momentum is conserved. For a stable central attractor and “hugging” clumps, use **star mass much larger than particle mass** (e.g. M_star=1, m_particle=0.001).
 
 ## What we do not include
 

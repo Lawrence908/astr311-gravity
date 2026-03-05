@@ -74,7 +74,7 @@ def run_demo(
     replay_every: save a snapshot every this many steps when replay_path is set.
     use_gpu: if True, use CuPy for force computation (requires cupy-cuda12x and a GPU).
     collisions: if True, resolve inelastic mergers (particle–star and particle–particle) each step.
-    r_collide: collision radius when collisions=True; default 2.0 * softening.
+    r_collide: collision radius when collisions=True; default 1.0 * softening (only very close pairs merge).
     """
     if use_gpu:
         try:
@@ -85,7 +85,7 @@ def run_demo(
         from .forces_cpu import compute_accelerations_vectorized
     accel_fn = _make_accel_fn(compute_accelerations_vectorized, softening=softening)
     if r_collide is None and collisions:
-        r_collide = 2.0 * softening
+        r_collide = 1.0 * softening  # small so only genuinely close pairs merge; 2× softening over-merges dense disks
     if frames_dir is None:
         frames_dir = "outputs/frames"
     if save_every is None:
@@ -221,6 +221,7 @@ def main() -> None:
     p.add_argument("--m-particle", type=float, default=None, dest="m_particle", metavar="M", help="Mass per disk/cloud particle (code units); default 1/(N+1)")
     p.add_argument("--r_min", type=float, default=0.5, help="Disk inner radius (disk IC)")
     p.add_argument("--r_max", type=float, default=2.0, help="Disk/cloud outer radius")
+    p.add_argument("--softening", type=float, default=0.05, help="Gravitational softening length ε")
     p.add_argument("--save-frames", action="store_true", help="Save PNG frames to outputs/frames (or --frames-dir)")
     p.add_argument("--frames-dir", type=str, default="outputs/frames", help="Directory for saved frames")
     p.add_argument("--save-every", type=int, default=None, metavar="N", help="Save a frame every N steps (default: same as --viz-every)")
@@ -237,6 +238,7 @@ def main() -> None:
         n_particles=args.n,
         n_steps=args.steps,
         dt=args.dt,
+        softening=args.softening,
         ic=args.ic,
         seed=args.seed,
         M_star=args.M_star,
