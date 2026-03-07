@@ -6,9 +6,9 @@ networks:
     name: homelab-web
 
 services:
-  astr311:
+  astr311-chris:
     build: .
-    container_name: astr311
+    container_name: astr311-chris
     restart: unless-stopped
     networks:
       - web
