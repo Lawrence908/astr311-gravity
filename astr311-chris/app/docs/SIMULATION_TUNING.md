@@ -2,6 +2,35 @@
 
 Notes on getting desirable behavior: initial clumping, orbits that persist, and avoiding everything spiraling into a tight cluster around the star.
 
+---
+
+## Input reference (what each control does)
+
+| Input | What it does |
+|-------|----------------|
+| **Spatial dimension** | 2D = disk in a plane; 3D = thickened disk in space. |
+| **Initial conditions** | **Disk:** annulus between r_min and r_max with near-circular orbits. **Cloud:** random positions inside r_max with partial angular momentum. |
+| **Number of particles** | Total disk/cloud particles (plus one central star). 1000–5000 is typical for spiral-galaxy-style runs. |
+| **Time steps** | How many integration steps to run. More steps = longer simulation time. |
+| **Time step size (Δt)** | Integration step in code units. Smaller = more accurate but slower; use ~0.01–0.02 for stability. |
+| **Snapshot every N steps** | How often to save a frame for the replay. Larger N = smaller replay file. |
+| **Star mass** | Mass of the central object (particle 0) in code units. Usually 1.0. |
+| **Mass ratio (star : particle)** | Slider: sets how much heavier the star is than each disk particle. Higher ratio = lighter particles = more stable orbits; lower ratio = heavier disk = more clumping and inspiral. |
+| **Min initial radius (r_min)** | Inner edge of the disk annulus. Keep > 0.5 so particles don’t start on plunging orbits. |
+| **Max initial radius (r_max)** | Outer edge; particles start within this radius. Larger = start further out, longer orbital times. |
+| **Gravitational softening (ε)** | Softens gravity at small separations so force doesn’t blow up. Larger ε = weaker pull at close range; try 0.05–0.1. |
+| **Dark matter halo mass** | Optional Hernquist halo centred at origin. 0 = off. Non-zero adds extra inward pull so the disk can maintain a flatter rotation curve (spiral-galaxy-like). |
+| **Halo scale radius** | Scale length of the dark matter halo; larger = more spread-out halo. |
+| **Random seed** | Fixes the random layout of particles for reproducible runs. |
+| **Run name** | Name for the saved replay; leave empty for an auto-generated name. |
+| **Use GPU** | Use CuPy/CUDA for force computation (faster for large N). |
+| **Enable collisions** | Inelastic mergers: particles within collision radius merge. Off = particles pass through each other. |
+| **Collision radius** | Distance below which two bodies merge. Default (auto) ≈ 1× softening; keep small to avoid over-merging. |
+
+In the **viewer**, sphere sizes are drawn proportional to mass (cube-root of mass ratio) so you can see the star vs particle mass by eye.
+
+---
+
 ## Softening: more or less attraction?
 
 **Increasing gravitational softening (ε) makes particles *less* attracted to each other at very close distances.**
@@ -21,20 +50,23 @@ Together, larger r_max and (for disk) a higher r_min give particles more distanc
 
 ## Other knobs
 
-- **Star mass (M_star) vs particle mass:** If the central star dominates (e.g. M_star = 1, m_particle small so total particle mass ≪ 1), the potential is more central; clumps behave more like test particles and can retain orbits longer. If particle mass is large, particle–particle gravity competes and can cause more merging and inspiral.
-- **Time step (Δt):** Smaller dt improves energy conservation and stability during close encounters; use it if you see wild energy drift or ejections when clumps pass near the star.
-- **Steps:** For “long-term” orbits, run long enough (e.g. 5000–20000 steps) so that you can see whether clumps persist or eventually merge into the core.
-- **Initial conditions:** “Disk” with circular-ish velocities gives more ordered motion; “cloud” with partial angular momentum is more chaotic. For clumping and orbits, disk with modest velocity_noise is usually a good starting point.
-- **Collisions:** With collisions on, merging is explicit; r_collide small (e.g. ~1× softening) keeps mergers gradual. With collisions off, overlapping particles just pass through; you still get clumping in position/velocity from gravity alone.
+- **Mass ratio:** Use the mass-ratio slider so the star dominates (e.g. 1000:1 or 10000:1). If the total disk mass is comparable to the star, the disk is violently unstable and particles spiral in quickly.
+- **Dark matter halo:** Adding M_halo > 0 gives extra centripetal support and a flatter rotation curve; helps keep outer particles in orbit and can produce more spiral-galaxy-like structure.
+- **Time step (Δt):** Smaller dt improves energy conservation; use ~0.01–0.02. Reduce if you see wild energy drift or ejections.
+- **Steps:** For long-term orbits, run 5000–50000+ steps so you can see whether clumps persist or merge into the core.
+- **Initial conditions:** “Disk” with circular-ish velocities gives ordered motion; “cloud” is more chaotic. Disk is the usual choice for spiral-like runs.
+- **Collisions:** On = explicit mergers within r_collide (keep r_collide small, ~1× softening). Off = particles pass through; gravity alone still causes clumping.
 
 ## Suggested starting point for “clumps + long-term orbits”
 
 - **n:** 2000–5000  
-- **r_max:** 4 or 5 (particles start further out)  
-- **r_min:** 1.0 (disk only; inner edge away from star)  
+- **r_max:** 4–6 (particles start further out)  
+- **r_min:** 1.0–2.0 (inner edge away from star)  
 - **ε (softening):** 0.05–0.08  
-- **M_star:** 1.0, m_particle: auto (so star dominates)  
-- **steps:** 5000+  
-- **dt:** 0.01 (reduce to 0.005 if you see energy blow-ups)
+- **Mass ratio:** 1000:1 or higher (star dominates)  
+- **M_halo:** 0 to start; try 5–20 for spiral-galaxy-style runs  
+- **a_halo:** ~0.5× r_max (e.g. 5 if r_max ≈ 10)  
+- **steps:** 5000+ (e.g. 20000–50000 for long runs)  
+- **dt:** 0.01 (or 0.02 if orbits look stable)
 
-Then adjust r_max, r_min, and softening based on whether clumps stay coherent and orbit longer or still spiral in too quickly.
+Then adjust r_max, r_min, mass ratio, and halo based on whether clumps stay coherent and orbit longer or still spiral in too quickly.
