@@ -67,6 +67,8 @@ def _parse_run_params(body: dict) -> tuple[dict, str | None]:
     r_collide = body.get("r_collide")
     if r_collide is not None:
         r_collide = float(r_collide)
+    M_halo = float(body.get("M_halo", 0.0))
+    a_halo = float(body.get("a_halo", 5.0))
     return {
         "name": name,
         "dim": dim,
@@ -84,6 +86,8 @@ def _parse_run_params(body: dict) -> tuple[dict, str | None]:
         "m_particle": m_particle,
         "collisions": collisions,
         "r_collide": r_collide,
+        "M_halo": M_halo,
+        "a_halo": a_halo,
     }, None
 
 
@@ -103,6 +107,8 @@ def _build_run_cmd(params: dict) -> tuple[list[str], Path, Path]:
     m_particle = params["m_particle"]
     collisions = params["collisions"]
     r_collide = params["r_collide"]
+    M_halo = params["M_halo"]
+    a_halo = params["a_halo"]
     use_gpu = params["gpu"]
     out_json = REPLAYS_DIR / f"{name}.json"
     temp_npz = REPLAYS_DIR / f"{name}.npz"
@@ -119,6 +125,8 @@ def _build_run_cmd(params: dict) -> tuple[list[str], Path, Path]:
         ]
         if m_particle is not None:
             cmd.extend(["--m-particle", str(m_particle)])
+        if M_halo > 0:
+            cmd.extend(["--M-halo", str(M_halo), "--a-halo", str(a_halo)])
         if collisions:
             cmd.append("--collisions")
             if r_collide is not None:
@@ -134,6 +142,8 @@ def _build_run_cmd(params: dict) -> tuple[list[str], Path, Path]:
         ]
         if m_particle is not None:
             cmd.extend(["--m-particle", str(m_particle)])
+        if M_halo > 0:
+            cmd.extend(["--M-halo", str(M_halo), "--a-halo", str(a_halo)])
         if collisions:
             cmd.append("--collisions")
             if r_collide is not None:

@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 
 from .collisions import resolve_collisions
 from .diagnostics import compute_angular_momentum, compute_total_energy
+from .forces_cpu import compute_halo_acceleration
 from .init_conditions import make_disk_3d
 from .integrators import leapfrog_step
 from .progress import report_progress
@@ -41,6 +42,8 @@ def main() -> None:
     p.add_argument("--gpu", action="store_true", help="Use GPU for forces (requires CuPy and a CUDA GPU)")
     p.add_argument("--collisions", action="store_true", help="Enable inelastic mergers (particle–star and particle–particle)")
     p.add_argument("--r-collide", type=float, default=None, metavar="R", help="Collision radius when --collisions (default 2*softening)")
+    p.add_argument("--M-halo", type=float, default=0.0, dest="M_halo", help="Dark-matter halo mass (Hernquist profile, 0 = off)")
+    p.add_argument("--a-halo", type=float, default=5.0, dest="a_halo", help="Halo scale radius (Hernquist)")
     args = p.parse_args()
 
     softening = args.softening
@@ -65,10 +68,21 @@ def main() -> None:
         r_min=args.r_min,
         r_max=args.r_max,
         thickness=0.05,
+        M_halo=args.M_halo,
+        a_halo=args.a_halo,
     )
 
-    def accel_fn(s: ParticleState):
-        return compute_accelerations_vectorized(s, softening=softening, G=1.0)
+    M_halo = args.M_halo
+    a_halo = args.a_halo
+
+    if M_halo > 0:
+        def accel_fn(s: ParticleState):
+            a = compute_accelerations_vectorized(s, softening=softening, G=1.0)
+            a += compute_halo_acceleration(s.positions, M_halo, a_halo, G=1.0)
+            return a
+    else:
+        def accel_fn(s: ParticleState):
+            return compute_accelerations_vectorized(s, softening=softening, G=1.0)
 
     replay_positions = []
     replay_masses_list = []

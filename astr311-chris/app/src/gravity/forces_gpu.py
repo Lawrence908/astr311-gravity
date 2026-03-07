@@ -20,6 +20,22 @@ except ImportError as e:
     _IMPORT_ERROR = e
 
 
+def compute_halo_acceleration(
+    positions: np.ndarray,
+    M_halo: float,
+    a_halo: float,
+    G: float = 1.0,
+) -> np.ndarray:
+    """Acceleration from a static Hernquist dark-matter halo centred at the origin.
+
+    O(N) so runs on CPU even when particle-particle forces use GPU.
+    """
+    r = np.sqrt(np.sum(positions * positions, axis=-1, keepdims=True))
+    r_safe = np.maximum(r, 1e-12)
+    acc = -G * M_halo / (r_safe + a_halo) ** 2 * (positions / r_safe)
+    return acc.astype(positions.dtype)
+
+
 def _raise_gpu_runtime_error(cause: BaseException) -> None:
     msg = (
         "GPU failed: {cause}. "
