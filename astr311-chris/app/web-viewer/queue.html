@@ -106,15 +106,23 @@
         <div id="runReplayEstimate" class="replay-estimate"></div>
         <label for="runMStar">Star mass</label>
         <input type="number" id="runMStar" min="0.01" max="1000" step="0.1" value="1">
-        <label for="runMParticle">Particle mass (empty = auto)</label>
-        <input type="number" id="runMParticle" min="0.0001" max="10" step="0.001" placeholder="auto">
-        <span id="runMassRatio" class="mass-ratio">Ratio —</span>
+        <label for="runMassRatioSlider">Mass ratio (star : particle)</label>
+        <input type="range" id="runMassRatioSlider" min="2" max="5" step="0.01" value="3"
+          style="width:100%; accent-color: var(--input-focus);">
+        <span id="runMassRatio" class="mass-ratio">Ratio 1000 : 1  —  m_particle = 0.001</span>
+        <input type="hidden" id="runMParticle" value="">
         <label for="runRmin" title="Disk IC only: inner edge of annulus">Min initial radius (r_min)</label>
         <input type="number" id="runRmin" step="0.1" value="0.5" min="0.01">
         <label for="runRmax" title="Particles start within this radius; larger = start further from star">Max initial radius (r_max)</label>
         <input type="number" id="runRmax" step="0.1" value="4" min="0.1">
         <label for="runSoftening">Gravitational softening (ε)</label>
         <input type="number" id="runSoftening" step="0.01" value="0.05">
+        <label for="runMHalo" title="Static Hernquist dark-matter halo mass (0 = no halo)">Dark matter halo mass</label>
+        <input type="range" id="runMHalo" min="0" max="50" step="0.5" value="0"
+          style="width:100%; accent-color: var(--input-focus);">
+        <span id="runMHaloLabel" class="mass-ratio">M_halo = 0 (off)</span>
+        <label for="runAHalo" title="Hernquist scale radius — controls how concentrated the halo is">Halo scale radius</label>
+        <input type="number" id="runAHalo" step="0.5" min="0.1" max="100" value="5">
         <label for="runSeed">Random seed</label>
         <input type="number" id="runSeed" value="42">
         <label for="runName">Run name</label>
@@ -171,11 +179,19 @@
 
     function updateMassRatio() {
       const M = parseFloat(document.getElementById('runMStar').value) || 1;
-      const mVal = document.getElementById('runMParticle').value.trim();
-      const n = parseInt(document.getElementById('runN').value, 10) || 500;
-      const m = mVal === '' ? (1 / (n + 1)) : parseFloat(mVal);
+      const logRatio = parseFloat(document.getElementById('runMassRatioSlider').value);
+      const ratio = Math.round(Math.pow(10, logRatio));
+      const mParticle = M / ratio;
+      document.getElementById('runMParticle').value = mParticle;
       const el = document.getElementById('runMassRatio');
-      el.textContent = m > 0 ? 'Ratio (star/particle): ' + (M / m).toFixed(0) : 'Ratio —';
+      el.textContent = 'Ratio ' + ratio.toLocaleString() + ' : 1  —  m_particle = ' + mParticle.toPrecision(3);
+    }
+
+    function updateHaloLabel() {
+      const v = parseFloat(document.getElementById('runMHalo').value);
+      document.getElementById('runMHaloLabel').textContent = v > 0
+        ? 'M_halo = ' + v
+        : 'M_halo = 0 (off)';
     }
 
     function renderQueueStatus(data) {
@@ -257,9 +273,11 @@
     };
     document.querySelectorAll('input[name="dim"]').forEach(function (el) { el.oninput = function () { document.getElementById('runName').placeholder = suggestRunName(); }; });
     document.getElementById('runReplayEvery').oninput = updateReplayEstimate;
-    document.getElementById('runMStar').oninput = document.getElementById('runMParticle').oninput = document.getElementById('runN').oninput = updateMassRatio;
+    document.getElementById('runMStar').oninput = document.getElementById('runMassRatioSlider').oninput = updateMassRatio;
+    document.getElementById('runMHalo').oninput = updateHaloLabel;
     document.getElementById('runName').placeholder = suggestRunName();
     updateMassRatio();
+    updateHaloLabel();
     updateReplayEstimate();
 
     document.getElementById('runBtn').onclick = function () {
@@ -274,6 +292,8 @@
       const dim = document.querySelector('input[name="dim"]:checked').value;
       const name = document.getElementById('runName').value.trim() || suggestRunName();
       const mParticleVal = document.getElementById('runMParticle').value.trim();
+      const mHalo = parseFloat(document.getElementById('runMHalo').value) || 0;
+      const aHalo = parseFloat(document.getElementById('runAHalo').value) || 5;
       const payload = {
         name: name,
         dim: dim,
@@ -289,6 +309,8 @@
         gpu: document.getElementById('runGpu').checked,
         M_star: parseFloat(document.getElementById('runMStar').value) || 1,
         collisions: document.getElementById('runCollisions').checked,
+        M_halo: mHalo,
+        a_halo: aHalo,
       };
       if (mParticleVal !== '') payload.m_particle = parseFloat(mParticleVal);
       const rCollideVal = document.getElementById('runRCollide').value.trim();
