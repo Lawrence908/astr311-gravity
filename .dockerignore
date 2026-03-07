@@ -1,0 +1,11 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.git/
+outputs/
+web-viewer/replays/*.json
+*.npz
+.pytest_cache/
+.idea/
+.vscode/

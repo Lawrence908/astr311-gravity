@@ -22,3 +22,6 @@ dist/
 
 # Outputs (can be narrowed later if you want to track .gitkeep only)
 outputs/
+
+# Replays from sim server (bind mount when using compose)
+replays/
