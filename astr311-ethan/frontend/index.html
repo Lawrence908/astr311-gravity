@@ -147,12 +147,21 @@
             transform: translate(-50%, -50%);
             font-size: 14px; color: #888; z-index: 200;
         }
+        #viewHint {
+            position: fixed; bottom: 48px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.55); color: #777; font-size: 12px;
+            padding: 5px 16px; border-radius: 12px; pointer-events: none;
+            transition: opacity 1.5s; z-index: 200; white-space: nowrap;
+        }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
     <canvas id="simCanvas"></canvas>
     <div id="labelsContainer"></div>
     <div id="loading">Loading simulation...</div>
+    <div id="viewHint">Drag to rotate &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Right-click to pan</div>
 
     <div id="topBar">
         <button class="nav-btn active" data-panel="graphics">
@@ -230,14 +239,13 @@
 
     <script>
         const canvas = document.getElementById('simCanvas');
-        const ctx = canvas.getContext('2d');
         const labelsContainer = document.getElementById('labelsContainer');
         const loadingEl = document.getElementById('loading');
 
-        // Body colors matching Wikipedia-style animation
         const BODY_COLORS = ['#4dabf7', '#ff6b6b', '#51cf66'];
         const COM_COLOR = '#ffd43b';
 
+        // Simulation state
         let history = [];
         let currentStep = 0;
         let isPlaying = false;
@@ -247,43 +255,162 @@
         let showCOM = true;
         let labelElements = {};
         let visibleBodies = new Set();
-        let starCanvas = null;
         let scenario = '';
+        let worldScale = 1;
 
-        // Sun display marker (pluto_system only)
         const SUN_MARKER = { x: 1.1e8, y: 8.5e7, name: 'Sun' };
 
-        // Initial conditions state for three-body editor
         let icState = {
             masses: [3.0, 4.0, 5.0],
             positions: [[1.0, 3.0], [-2.0, -1.0], [1.0, -1.0]],
             velocities: [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]
         };
 
+        // ---- Three.js Setup ----
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x000000, 1);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 5000);
+        camera.position.set(0, 0, 20);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.screenSpacePanning = false;
+        controls.minDistance = 0.2;
+        controls.maxDistance = 300;
+        controls.target.set(0, 0, 0);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 8);
+        scene.add(dirLight);
+
+        // Scene object handles
+        let bodyMeshes = [], trailLines = [], comGroup = null, sceneSunMesh = null, starPoints = null;
+
+        // ---- Resize ----
         function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            generateStarfield();
-            if (history.length > 0) draw();
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            buildStarfield();
         }
         window.addEventListener('resize', resizeCanvas);
 
-        function generateStarfield() {
-            starCanvas = document.createElement('canvas');
-            starCanvas.width = canvas.width;
-            starCanvas.height = canvas.height;
-            const sctx = starCanvas.getContext('2d');
-            const count = Math.floor((canvas.width * canvas.height) / 2500);
-            for (let i = 0; i < count; i++) {
-                const x = Math.random() * canvas.width;
-                const y = Math.random() * canvas.height;
-                const r = Math.random() * 1.3 + 0.2;
-                const a = Math.random() * 0.55 + 0.15;
-                sctx.fillStyle = `rgba(255,255,255,${a})`;
-                sctx.beginPath();
-                sctx.arc(x, y, r, 0, Math.PI * 2);
-                sctx.fill();
+        // ---- Starfield ----
+        function buildStarfield() {
+            if (starPoints) { scene.remove(starPoints); starPoints.geometry.dispose(); starPoints.material.dispose(); }
+            const n = 2000;
+            const pos = new Float32Array(n * 3);
+            for (let i = 0; i < n; i++) {
+                const phi = Math.acos(2 * Math.random() - 1);
+                const theta = Math.random() * Math.PI * 2;
+                const r = 300 + Math.random() * 150;
+                pos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+                pos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+                pos[i*3+2] = r * Math.cos(phi);
             }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            starPoints = new THREE.Points(geo, new THREE.PointsMaterial({
+                color: 0xffffff, size: 0.8, sizeAttenuation: true, transparent: true, opacity: 0.6
+            }));
+            scene.add(starPoints);
+        }
+
+        // ---- World scale ----
+        function computeWorldScale() {
+            let maxR = 0;
+            for (const frame of history) {
+                for (const b of frame.bodies) {
+                    maxR = Math.max(maxR, Math.abs(b.position[0]), Math.abs(b.position[1]));
+                }
+            }
+            if (scenario === 'pluto_system') {
+                maxR = Math.max(maxR, Math.abs(SUN_MARKER.x), Math.abs(SUN_MARKER.y));
+            }
+            worldScale = 12 / (maxR || 1);
+        }
+
+        // ---- Build / dispose Three.js scene objects ----
+        function disposeSceneObjects() {
+            [...bodyMeshes, ...trailLines].forEach(o => {
+                scene.remove(o); o.geometry.dispose(); o.material.dispose();
+            });
+            bodyMeshes = []; trailLines = [];
+            if (comGroup) { comGroup.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }); scene.remove(comGroup); comGroup = null; }
+            if (sceneSunMesh) { scene.remove(sceneSunMesh); sceneSunMesh.geometry.dispose(); sceneSunMesh.material.dispose(); sceneSunMesh = null; }
+        }
+
+        function buildSceneObjects() {
+            disposeSceneObjects();
+            if (!history.length) return;
+            const s0 = history[0];
+
+            s0.bodies.forEach((body, i) => {
+                const col = scenario === 'three_body'
+                    ? parseInt(BODY_COLORS[i % BODY_COLORS.length].slice(1), 16)
+                    : 0xffffff;
+                const r = scenario === 'three_body' ? 0.08 + Math.sqrt(body.mass) * 0.07 : 0.28;
+                const mesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(r, 20, 20),
+                    new THREE.MeshPhongMaterial({ color: col, emissive: col, emissiveIntensity: 0.35 })
+                );
+                scene.add(mesh);
+                bodyMeshes.push(mesh);
+
+                // Pre-compute full trail geometry (O(1) draw-range updates per frame)
+                const pts = new Float32Array(history.length * 3);
+                for (let s = 0; s < history.length; s++) {
+                    const p = history[s].bodies[i].position;
+                    pts[s*3]   = p[0] * worldScale;
+                    pts[s*3+1] = p[1] * worldScale;
+                    pts[s*3+2] = 0;
+                }
+                const tGeo = new THREE.BufferGeometry();
+                tGeo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+                tGeo.setDrawRange(0, 0);
+                const tCol = scenario === 'three_body'
+                    ? parseInt(BODY_COLORS[i % BODY_COLORS.length].slice(1), 16)
+                    : 0xaab0c8;
+                const line = new THREE.Line(tGeo, new THREE.LineBasicMaterial({ color: tCol, transparent: true, opacity: 0.55 }));
+                scene.add(line);
+                trailLines.push(line);
+            });
+
+            // COM (sphere + crosshair lines)
+            comGroup = new THREE.Group();
+            comGroup.add(new THREE.Mesh(
+                new THREE.SphereGeometry(0.1, 8, 8),
+                new THREE.MeshBasicMaterial({ color: parseInt(COM_COLOR.slice(1), 16) })
+            ));
+            const cg = new THREE.BufferGeometry();
+            cg.setAttribute('position', new THREE.BufferAttribute(
+                new Float32Array([-0.45,0,0, 0.45,0,0, 0,-0.45,0, 0,0.45,0]), 3
+            ));
+            comGroup.add(new THREE.LineSegments(cg, new THREE.LineBasicMaterial({
+                color: parseInt(COM_COLOR.slice(1), 16), transparent: true, opacity: 0.5
+            })));
+            scene.add(comGroup);
+
+            // Sun sphere (pluto only)
+            if (scenario === 'pluto_system') {
+                sceneSunMesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.35, 12, 12),
+                    new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true })
+                );
+                sceneSunMesh.position.set(SUN_MARKER.x * worldScale, SUN_MARKER.y * worldScale, 0);
+                scene.add(sceneSunMesh);
+            }
+
+            // Reset camera to top-down view
+            camera.position.set(0, 0, 20);
+            camera.up.set(0, 1, 0);
+            controls.target.set(0, 0, 0);
+            controls.update();
         }
 
         // ---- Data fetching ----
@@ -291,9 +418,7 @@
             scenario = new URLSearchParams(window.location.search).get('scenario') || 'pluto_system';
             loadingEl.style.display = '';
             let url = `http://localhost:8000/simulate/${scenario}`;
-            if (customParams) {
-                url += '?' + customParams;
-            }
+            if (customParams) url += '?' + customParams;
             fetch(url)
                 .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
                 .then(data => {
@@ -301,14 +426,14 @@
                     if (data.error) { loadingEl.style.display = ''; loadingEl.textContent = 'Error: ' + data.error; return; }
                     history = data.history;
                     currentStep = 0;
-                    cachedThreeBodyScale = null;
                     clearLabels();
                     initVisibility();
+                    computeWorldScale();
+                    buildSceneObjects();
                     populateDropdowns();
                     populateObjectsList();
                     setupScenarioUI();
                     document.getElementById('timeSlider').max = history.length - 1;
-                    draw();
                 })
                 .catch(err => { loadingEl.textContent = 'Error loading simulation'; console.error(err); });
         }
@@ -316,7 +441,7 @@
         function clearLabels() { labelsContainer.innerHTML = ''; labelElements = {}; }
 
         function initVisibility() {
-            if (history.length === 0) return;
+            if (!history.length) return;
             visibleBodies = new Set(history[0].bodies.map(b => b.name));
         }
 
@@ -324,7 +449,6 @@
             const isThreeBody = scenario === 'three_body';
             document.getElementById('icTabBtn').style.display = isThreeBody ? '' : 'none';
             if (isThreeBody) {
-                // Read actual initial conditions from the simulation data
                 const s0 = history[0];
                 icState.masses = s0.bodies.map(b => b.mass);
                 icState.positions = s0.bodies.map(b => [b.position[0], b.position[1]]);
@@ -351,7 +475,6 @@
                 `;
                 editor.appendChild(div);
             }
-            // Update icState when inputs change
             editor.querySelectorAll('input').forEach(inp => {
                 inp.addEventListener('change', () => {
                     const i = parseInt(inp.dataset.i);
@@ -388,7 +511,7 @@
         document.getElementById('randomizeBtn').addEventListener('click', randomizeIC);
 
         function populateDropdowns() {
-            if (history.length === 0) return;
+            if (!history.length) return;
             const names = history[0].bodies.map(b => b.name);
             const sel = document.getElementById('cameraFocus');
             const cur = sel.value;
@@ -405,10 +528,10 @@
         function populateObjectsList() {
             const list = document.getElementById('objectsList');
             list.innerHTML = '';
-            if (history.length === 0) return;
-            const allNames = history[0].bodies.map(b => b.name);
+            if (!history.length) return;
+            const allNames = [...history[0].bodies.map(b => b.name)];
             if (scenario === 'pluto_system') allNames.push('Sun');
-            allNames.forEach((name, idx) => {
+            allNames.forEach(name => {
                 const label = document.createElement('label');
                 label.className = 'checkbox-row';
                 const cb = document.createElement('input');
@@ -416,21 +539,19 @@
                 cb.checked = visibleBodies.has(name);
                 cb.addEventListener('change', () => {
                     if (cb.checked) visibleBodies.add(name); else visibleBodies.delete(name);
-                    clearLabels(); draw();
+                    clearLabels();
                 });
                 label.appendChild(cb);
                 const span = document.createElement('span');
                 const bodyIdx = history[0].bodies.findIndex(b => b.name === name);
-                if (bodyIdx >= 0 && scenario === 'three_body') {
-                    span.style.color = BODY_COLORS[bodyIdx % BODY_COLORS.length];
-                }
+                if (bodyIdx >= 0 && scenario === 'three_body') span.style.color = BODY_COLORS[bodyIdx % BODY_COLORS.length];
                 span.textContent = name;
                 label.appendChild(span);
                 list.appendChild(label);
             });
         }
 
-        // ---- View transforms ----
+        // ---- Physics helpers ----
         function getBarycenter(state) {
             let tm = 0, cx = 0, cy = 0;
             for (const b of state.bodies) { tm += b.mass; cx += b.position[0]*b.mass; cy += b.position[1]*b.mass; }
@@ -445,134 +566,67 @@
             return body ? [...body.position] : getBarycenter(state);
         }
 
-        function getAutoScale(state, fp) {
-            let maxDist = 0;
-            // For three-body, compute max extent across ALL history for stable zoom
-            if (scenario === 'three_body') {
-                for (let s = 0; s < history.length; s++) {
-                    for (const b of history[s].bodies) {
-                        if (!visibleBodies.has(b.name)) continue;
-                        const bc = getBarycenter(history[s]);
-                        const dx = b.position[0] - bc[0], dy = b.position[1] - bc[1];
-                        maxDist = Math.max(maxDist, Math.sqrt(dx*dx + dy*dy));
-                    }
-                }
-            } else {
-                for (const b of state.bodies) {
-                    if (!visibleBodies.has(b.name)) continue;
-                    const dx = b.position[0]-fp[0], dy = b.position[1]-fp[1];
-                    maxDist = Math.max(maxDist, Math.sqrt(dx*dx + dy*dy));
-                }
-                if (visibleBodies.has('Sun')) {
-                    const sdx = SUN_MARKER.x-fp[0], sdy = SUN_MARKER.y-fp[1];
-                    maxDist = Math.max(maxDist, Math.sqrt(sdx*sdx + sdy*sdy));
-                }
-            }
-            const minDim = Math.min(canvas.width, canvas.height);
-            return (minDim * 0.40) / (maxDist || 1);
-        }
-
-        // Cache three-body scale so it doesn't recompute every frame
-        let cachedThreeBodyScale = null;
-        function getScale(state, fp) {
-            if (scenario === 'three_body') {
-                if (cachedThreeBodyScale === null) cachedThreeBodyScale = getAutoScale(state, fp);
-                return cachedThreeBodyScale;
-            }
-            return getAutoScale(state, fp);
-        }
-
-        function worldToScreen(wx, wy, fp, scale) {
-            return [(wx-fp[0])*scale + canvas.width/2, (wy-fp[1])*scale + canvas.height/2];
-        }
-
-        // ---- Drawing ----
+        // ---- Rendering (called every animation frame) ----
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (starCanvas) ctx.drawImage(starCanvas, 0, 0);
-            if (history.length === 0) return;
-
+            if (!history.length) return;
             const state = history[currentStep];
-            const fp = getFocusPosition(state);
-            const scale = getScale(state, fp);
 
-            // Draw trails (up to current step)
-            if (showTrails) {
-                ctx.lineWidth = 1.5;
-                for (let bi = 0; bi < state.bodies.length; bi++) {
-                    if (!visibleBodies.has(state.bodies[bi].name)) continue;
-                    const color = scenario === 'three_body' ? BODY_COLORS[bi % BODY_COLORS.length] : 'rgba(180,185,200,0.6)';
-                    ctx.strokeStyle = color;
-                    ctx.globalAlpha = 0.6;
-                    ctx.beginPath();
-                    let started = false;
-                    const step = currentStep > 2000 ? 2 : 1;
-                    for (let s = 0; s <= currentStep; s += step) {
-                        const pos = history[s].bodies[bi].position;
-                        const [sx, sy] = worldToScreen(pos[0], pos[1], fp, scale);
-                        if (!started) { ctx.moveTo(sx, sy); started = true; }
-                        else ctx.lineTo(sx, sy);
-                    }
-                    ctx.stroke();
-                }
-                ctx.globalAlpha = 1.0;
-            }
-
-            // Draw COM marker
-            if (showCOM) {
-                const com = getBarycenter(state);
-                const [cx, cy] = worldToScreen(com[0], com[1], fp, scale);
-                ctx.beginPath();
-                ctx.arc(cx, cy, 4, 0, Math.PI*2);
-                ctx.fillStyle = COM_COLOR;
-                ctx.fill();
-                ctx.beginPath();
-                ctx.moveTo(cx-8, cy); ctx.lineTo(cx+8, cy);
-                ctx.moveTo(cx, cy-8); ctx.lineTo(cx, cy+8);
-                ctx.strokeStyle = COM_COLOR;
-                ctx.lineWidth = 1;
-                ctx.globalAlpha = 0.5;
-                ctx.stroke();
-                ctx.globalAlpha = 1.0;
-            }
-
-            // Draw bodies
             state.bodies.forEach((body, i) => {
-                if (!visibleBodies.has(body.name)) return;
-                const [sx, sy] = worldToScreen(body.position[0], body.position[1], fp, scale);
-                const color = scenario === 'three_body' ? BODY_COLORS[i % BODY_COLORS.length] : '#fff';
-                const radius = scenario === 'three_body' ? 3 + Math.sqrt(body.mass) * 2 : 5;
-                // Draw filled circle with glow
-                ctx.beginPath();
-                ctx.arc(sx, sy, radius, 0, Math.PI*2);
-                ctx.fillStyle = color;
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                if (showLabels) setLabel(i, body.name, sx + radius + 6, sy - 4, color);
+                const vis = visibleBodies.has(body.name);
+                if (i < bodyMeshes.length) {
+                    bodyMeshes[i].visible = vis;
+                    bodyMeshes[i].position.set(
+                        body.position[0] * worldScale,
+                        body.position[1] * worldScale,
+                        0
+                    );
+                }
+                if (i < trailLines.length) {
+                    trailLines[i].visible = vis && showTrails;
+                    if (vis && showTrails) trailLines[i].geometry.setDrawRange(0, currentStep + 1);
+                }
             });
 
-            // Draw Sun marker (pluto only)
-            if (scenario === 'pluto_system' && visibleBodies.has('Sun')) {
-                const [sunSx, sunSy] = worldToScreen(SUN_MARKER.x, SUN_MARKER.y, fp, scale);
-                ctx.beginPath();
-                ctx.arc(sunSx, sunSy, 5, 0, Math.PI*2);
-                ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-                ctx.lineWidth = 1.4;
-                ctx.stroke();
-                if (showLabels) setLabel('sun', SUN_MARKER.name, sunSx+12, sunSy-4, '#fff');
+            // COM marker
+            if (comGroup) {
+                const com = getBarycenter(state);
+                comGroup.position.set(com[0] * worldScale, com[1] * worldScale, 0);
+                comGroup.visible = showCOM;
             }
 
-            if (!showLabels) Object.values(labelElements).forEach(el => el.style.display = 'none');
+            // Sun
+            if (sceneSunMesh) sceneSunMesh.visible = visibleBodies.has('Sun');
 
-            // Time display
-            if (scenario === 'pluto_system') {
-                document.getElementById('timeDisplay').textContent = (state.time/86400).toFixed(1) + ' days';
-            } else {
-                document.getElementById('timeDisplay').textContent = 't = ' + state.time.toFixed(2);
+            // Labels: hide all, then re-project visible ones each frame (required for 3D rotation)
+            Object.values(labelElements).forEach(el => el.style.display = 'none');
+            if (showLabels) {
+                state.bodies.forEach((body, i) => {
+                    if (!visibleBodies.has(body.name) || i >= bodyMeshes.length) return;
+                    const sp = projectToScreen(bodyMeshes[i].position);
+                    if (!sp) return;
+                    const col = scenario === 'three_body' ? BODY_COLORS[i % BODY_COLORS.length] : '#fff';
+                    const pxR = scenario === 'three_body' ? (10 + Math.sqrt(body.mass) * 5) : 12;
+                    setLabel(i, body.name, sp.x + pxR, sp.y - 4, col);
+                });
+                if (sceneSunMesh && visibleBodies.has('Sun')) {
+                    const sp = projectToScreen(sceneSunMesh.position);
+                    if (sp) setLabel('sun', 'Sun', sp.x + 12, sp.y - 4, '#fff');
+                }
             }
+
+            document.getElementById('timeDisplay').textContent = scenario === 'pluto_system'
+                ? (state.time / 86400).toFixed(1) + ' days'
+                : 't = ' + state.time.toFixed(2);
             document.getElementById('timeSlider').value = currentStep;
+        }
+
+        function projectToScreen(pos3D) {
+            const v = pos3D.clone().project(camera);
+            if (v.z > 1) return null;
+            return {
+                x: Math.round((v.x + 1) / 2 * window.innerWidth),
+                y: Math.round((-v.y + 1) / 2 * window.innerHeight)
+            };
         }
 
         function setLabel(key, text, x, y, color) {
@@ -590,17 +644,19 @@
             el.style.display = '';
         }
 
-        // ---- Animation ----
+        // ---- Animation loop ----
         function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
             if (isPlaying && history.length > 0 && currentStep < history.length - 1) {
                 currentStep = Math.min(currentStep + playSpeed, history.length - 1);
-                draw();
                 if (currentStep >= history.length - 1) {
                     isPlaying = false;
                     document.getElementById('playPauseBtn').innerHTML = '&#9654;';
                 }
             }
-            requestAnimationFrame(animate);
+            draw();
+            renderer.render(scene, camera);
         }
 
         // ---- Event handlers ----
@@ -612,17 +668,21 @@
         document.getElementById('resetBtn').addEventListener('click', () => {
             currentStep = 0; isPlaying = false;
             document.getElementById('playPauseBtn').innerHTML = '&#9654;';
-            draw();
         });
-        document.getElementById('timeSlider').addEventListener('input', e => { currentStep = parseInt(e.target.value); draw(); });
+        document.getElementById('timeSlider').addEventListener('input', e => { currentStep = parseInt(e.target.value); });
         document.getElementById('speedSlider').addEventListener('input', e => {
             playSpeed = parseInt(e.target.value);
             document.getElementById('speedValue').textContent = playSpeed + 'x';
         });
-        document.getElementById('cameraFocus').addEventListener('change', () => draw());
-        document.getElementById('showLabelsCheck').addEventListener('change', e => { showLabels = e.target.checked; draw(); });
-        document.getElementById('showTrailsCheck').addEventListener('change', e => { showTrails = e.target.checked; draw(); });
-        document.getElementById('showCOMCheck').addEventListener('change', e => { showCOM = e.target.checked; draw(); });
+        document.getElementById('cameraFocus').addEventListener('change', () => {
+            if (!history.length) return;
+            const fp = getFocusPosition(history[currentStep]);
+            controls.target.set(fp[0] * worldScale, fp[1] * worldScale, 0);
+            controls.update();
+        });
+        document.getElementById('showLabelsCheck').addEventListener('change', e => { showLabels = e.target.checked; });
+        document.getElementById('showTrailsCheck').addEventListener('change', e => { showTrails = e.target.checked; });
+        document.getElementById('showCOMCheck').addEventListener('change', e => { showCOM = e.target.checked; });
 
         // Panel / tab handling
         document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -646,10 +706,16 @@
             });
         });
 
+        // Fade out the 3D hint after 5 seconds
+        setTimeout(() => {
+            const hint = document.getElementById('viewHint');
+            if (hint) { hint.style.opacity = '0'; setTimeout(() => hint.remove(), 1500); }
+        }, 5000);
+
         // Init
         resizeCanvas();
         fetchSimulation();
-        requestAnimationFrame(animate);
+        animate();
     </script>
 </body>
 </html>
