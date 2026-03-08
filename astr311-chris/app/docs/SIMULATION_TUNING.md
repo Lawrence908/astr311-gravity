@@ -14,8 +14,7 @@ Notes on getting desirable behavior: initial clumping, orbits that persist, and 
 | **Time steps** | How many integration steps to run. More steps = longer simulation time. |
 | **Time step size (Δt)** | Integration step in code units. Smaller = more accurate but slower; use ~0.01–0.02 for stability. |
 | **Snapshot every N steps** | How often to save a frame for the replay. Larger N = smaller replay file. |
-| **Star mass** | Mass of the central object (particle 0) in code units. Usually 1.0. |
-| **Mass ratio (star : particle)** | Slider: sets how much heavier the star is than each disk particle. Higher ratio = lighter particles = more stable orbits; lower ratio = heavier disk = more clumping and inspiral. |
+| **Mass ratio (star : particle)** | Single slider: star mass is fixed at 1; the slider sets how much heavier the star is than each particle (e.g. 1000:1 → m_particle = 0.001). Higher ratio = lighter particles = more stable orbits. Sphere sizes in the viewer scale with mass. |
 | **Min initial radius (r_min)** | Inner edge of the disk annulus. Keep > 0.5 so particles don’t start on plunging orbits. |
 | **Max initial radius (r_max)** | Outer edge; particles start within this radius. Larger = start further out, longer orbital times. |
 | **Gravitational softening (ε)** | Softens gravity at small separations so force doesn’t blow up. Larger ε = weaker pull at close range; try 0.05–0.1. |

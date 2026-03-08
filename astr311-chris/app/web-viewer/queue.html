@@ -104,12 +104,12 @@
         <label for="runReplayEvery">Snapshot every N steps</label>
         <input type="number" id="runReplayEvery" min="1" max="1000" value="20">
         <div id="runReplayEstimate" class="replay-estimate"></div>
-        <label for="runMStar">Star mass</label>
-        <input type="number" id="runMStar" min="0.01" max="1000" step="0.1" value="1">
         <label for="runMassRatioSlider">Mass ratio (star : particle)</label>
         <input type="range" id="runMassRatioSlider" min="2" max="5" step="0.01" value="3"
-          style="width:100%; accent-color: var(--input-focus);">
-        <span id="runMassRatio" class="mass-ratio">Ratio 1000 : 1  —  m_particle = 0.001</span>
+          style="width:100%; accent-color: var(--input-focus);"
+          title="Star mass is 1; slider sets how much lighter each particle is. Larger ratio = lighter particles = more stable orbits.">
+        <span id="runMassRatio" class="mass-ratio">Ratio 1000 : 1  —  m_particle = 0.001 (star = 1)</span>
+        <div id="runMassInKg" class="mass-ratio" style="margin-top: 4px; line-height: 1.4;" aria-live="polite">Star: 1 M☉ ≈ 1.99×10³⁰ kg · Particle: ≈ 1.99×10²⁷ kg</div>
         <input type="hidden" id="runMParticle" value="">
         <label for="runRmin" title="Disk IC only: inner edge of annulus">Min initial radius (r_min)</label>
         <input type="number" id="runRmin" step="0.1" value="0.5" min="0.01">
@@ -177,14 +177,29 @@
       el.classList.toggle('warning', snapshots > 2000 || (snapshots * (n + 1) * 3 * 18) > 100 * 1024 * 1024);
     }
 
+    const M_SUN_KG = 1.989e30;  // 1 code mass unit = 1 solar mass
+
+    function formatMassKg(codeMass) {
+      if (codeMass <= 0) return '— kg';
+      const kg = codeMass * M_SUN_KG;
+      const exp = Math.floor(Math.log10(kg));
+      const mantissa = (kg / Math.pow(10, exp)).toFixed(2);
+      const digits = { '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+      const sup = String(exp).split('').map(function (c) { return digits[c] || c; }).join('');
+      return mantissa + '×10' + sup + ' kg';
+    }
+
     function updateMassRatio() {
-      const M = parseFloat(document.getElementById('runMStar').value) || 1;
       const logRatio = parseFloat(document.getElementById('runMassRatioSlider').value);
       const ratio = Math.round(Math.pow(10, logRatio));
-      const mParticle = M / ratio;
+      const mParticle = 1 / ratio;  // star mass fixed at 1
       document.getElementById('runMParticle').value = mParticle;
       const el = document.getElementById('runMassRatio');
-      el.textContent = 'Ratio ' + ratio.toLocaleString() + ' : 1  —  m_particle = ' + mParticle.toPrecision(3);
+      el.textContent = 'Ratio ' + ratio.toLocaleString() + ' : 1  —  m_particle = ' + mParticle.toPrecision(3) + ' (star = 1)';
+      const kgEl = document.getElementById('runMassInKg');
+      if (kgEl) {
+        kgEl.innerHTML = 'Star: 1 M☉ ≈ ' + formatMassKg(1) + ' · Particle: ≈ ' + formatMassKg(mParticle);
+      }
     }
 
     function updateHaloLabel() {
@@ -273,7 +288,7 @@
     };
     document.querySelectorAll('input[name="dim"]').forEach(function (el) { el.oninput = function () { document.getElementById('runName').placeholder = suggestRunName(); }; });
     document.getElementById('runReplayEvery').oninput = updateReplayEstimate;
-    document.getElementById('runMStar').oninput = document.getElementById('runMassRatioSlider').oninput = updateMassRatio;
+    document.getElementById('runMassRatioSlider').oninput = updateMassRatio;
     document.getElementById('runMHalo').oninput = updateHaloLabel;
     document.getElementById('runName').placeholder = suggestRunName();
     updateMassRatio();
@@ -307,7 +322,7 @@
         softening: parseFloat(document.getElementById('runSoftening').value),
         seed: parseInt(document.getElementById('runSeed').value, 10),
         gpu: document.getElementById('runGpu').checked,
-        M_star: parseFloat(document.getElementById('runMStar').value) || 1,
+        M_star: 1,
         collisions: document.getElementById('runCollisions').checked,
         M_halo: mHalo,
         a_halo: aHalo,
