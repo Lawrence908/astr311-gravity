@@ -46,6 +46,7 @@
     #panel .replay-estimate.warning { color: var(--warn, #c9a227); }
     #panel .mass-ratio { font-size: 11px; color: var(--text-muted); margin: 2px 0 8px 0; }
     #panel .run-name-hint { font-size: 11px; color: var(--text-muted); margin: 2px 0 8px 0; display: block; }
+    #panel .panel-hint { font-size: 11px; color: var(--text-muted); margin: 2px 0 6px 0; display: block; line-height: 1.35; }
     #panel button[type="button"] {
       margin-top: 14px; padding: 8px 16px; cursor: pointer; border-radius: 6px;
       background: var(--btn-bg); border: 1px solid var(--input-border); color: var(--text); font-size: 13px;
@@ -78,32 +79,39 @@
   <div class="grid">
     <div class="card">
       <h2>New simulation</h2>
+      <p class="panel-hint" style="margin-bottom: 12px;">Set up a run: one heavy “star” at the centre and many lighter particles. When you hit Run, the sim will queue and you can watch it in the viewer when it’s done.</p>
       <div id="panel">
-        <label title="2D = plane; 3D = full space">Spatial dimension</label>
+        <label>Spatial dimension</label>
         <div class="row-inline">
           <label><input type="radio" name="dim" value="2d"> 2D</label>
           <label><input type="radio" name="dim" value="3d" checked> 3D</label>
         </div>
+        <span class="panel-hint">Flat disk (2D) or full 3D space. 3D looks more like a galaxy.</span>
         <label for="runIc">Initial conditions</label>
         <select id="runIc">
           <option value="disk">disk</option>
           <option value="cloud">cloud</option>
         </select>
+        <span class="panel-hint">Disk = particles start in a ring with orbits; cloud = more random spread. Disk is best for spiral-like runs.</span>
         <div class="panel-row">
           <div>
             <label for="runN">Number of particles</label>
             <input type="number" id="runN" min="1" max="10000" value="500">
+            <span class="panel-hint">More particles = richer picture, slower run. 1000–5000 is a good range.</span>
           </div>
           <div>
             <label for="runSteps">Time steps</label>
             <input type="number" id="runSteps" min="1" max="1000000" value="1000">
+            <span class="panel-hint">How long the sim runs. More steps = longer evolution (e.g. 20k–50k for orbits).</span>
           </div>
         </div>
         <label for="runDt">Time step size (Δt)</label>
         <input type="number" id="runDt" step="0.001" value="0.01">
+        <span class="panel-hint">Smaller = more accurate but slower. 0.01 is usually fine; drop to 0.005 if things look unstable.</span>
         <label for="runReplayEvery">Snapshot every N steps</label>
         <input type="number" id="runReplayEvery" min="1" max="1000" value="20">
         <div id="runReplayEstimate" class="replay-estimate"></div>
+<<<<<<< Updated upstream
         <label for="runMassRatioSlider">Mass ratio (star : particle)</label>
         <input type="range" id="runMassRatioSlider" min="2" max="5" step="0.01" value="3"
           style="width:100%; accent-color: var(--input-focus);"
@@ -111,20 +119,58 @@
         <span id="runMassRatio" class="mass-ratio">Ratio 1000 : 1  —  m_particle = 0.001 (star = 1)</span>
         <div id="runMassInKg" class="mass-ratio" style="margin-top: 4px; line-height: 1.4;" aria-live="polite">Star: 1 M☉ ≈ 1.99×10³⁰ kg · Particle: ≈ 1.99×10²⁷ kg</div>
         <input type="hidden" id="runMParticle" value="">
+=======
+<<<<<<< Updated upstream
+        <label for="runMStar">Star mass</label>
+        <input type="number" id="runMStar" min="0.01" max="1000" step="0.1" value="1">
+        <label for="runMParticle">Particle mass (empty = auto)</label>
+        <input type="number" id="runMParticle" min="0.0001" max="10" step="0.001" placeholder="auto">
+        <span id="runMassRatio" class="mass-ratio">Ratio —</span>
+>>>>>>> Stashed changes
         <label for="runRmin" title="Disk IC only: inner edge of annulus">Min initial radius (r_min)</label>
+=======
+        <span class="panel-hint">How often to save a frame for playback. Bigger N = smaller replay file.</span>
+        <label for="runMassRatioSlider">Mass ratio (star : particle)</label>
+        <input type="range" id="runMassRatioSlider" min="2" max="5" step="0.01" value="3"
+          style="width:100%; accent-color: var(--input-focus);"
+          title="Star mass is 1; slider sets how much lighter each particle is. Larger ratio = lighter particles = more stable orbits.">
+        <span id="runMassRatio" class="mass-ratio">Ratio 1000 : 1  —  m_particle = 0.001 (star = 1)</span>
+        <div id="runMassInKg" class="mass-ratio" style="margin-top: 4px; line-height: 1.4;" aria-live="polite">Star: 1 M☉ ≈ 1.99×10³⁰ kg · Particle: ≈ 1.99×10²⁷ kg</div>
+        <span class="panel-hint">How much heavier the star is than each particle. Higher ratio = lighter particles = orbits stay stable longer. Sizes in the viewer scale with mass.</span>
+        <input type="hidden" id="runMParticle" value="">
+        <label for="runRmin">Min initial radius (r_min)</label>
+>>>>>>> Stashed changes
         <input type="number" id="runRmin" step="0.1" value="0.5" min="0.01">
-        <label for="runRmax" title="Particles start within this radius; larger = start further from star">Max initial radius (r_max)</label>
+        <span class="panel-hint">Inner edge of the ring (disk only). Keep above 0.5 so particles don’t start on plunging orbits.</span>
+        <label for="runRmax">Max initial radius (r_max)</label>
         <input type="number" id="runRmax" step="0.1" value="4" min="0.1">
+        <span class="panel-hint">Outer edge: particles start somewhere inside this distance from the star. Larger = start further out.</span>
         <label for="runSoftening">Gravitational softening (ε)</label>
         <input type="number" id="runSoftening" step="0.01" value="0.05">
+<<<<<<< Updated upstream
         <label for="runMHalo" title="Static Hernquist dark-matter halo mass (0 = no halo)">Dark matter halo mass</label>
         <input type="range" id="runMHalo" min="0" max="50" step="0.5" value="0"
           style="width:100%; accent-color: var(--input-focus);">
         <span id="runMHaloLabel" class="mass-ratio">M_halo = 0 (off)</span>
         <label for="runAHalo" title="Hernquist scale radius — controls how concentrated the halo is">Halo scale radius</label>
         <input type="number" id="runAHalo" step="0.5" min="0.1" max="100" value="5">
+=======
+<<<<<<< Updated upstream
+=======
+        <span class="panel-hint">Smooths gravity when particles get very close so nothing “blows up.” 0.05–0.1 is typical.</span>
+        <label for="runMHalo">Dark matter halo mass</label>
+        <input type="range" id="runMHalo" min="0" max="50" step="0.5" value="0"
+          style="width:100%; accent-color: var(--input-focus);">
+        <span id="runMHaloLabel" class="mass-ratio">M_halo = 0 (off)</span>
+        <span class="panel-hint">Extra invisible mass that holds the disk in orbit (like in real galaxies). 0 = off; try 5–20 for spiral-style runs.</span>
+        <label for="runAHalo">Halo scale radius</label>
+        <input type="number" id="runAHalo" step="0.5" min="0.1" max="100" value="5">
+        <span class="panel-hint">How spread out the dark matter is. Often set to about half of r_max.</span>
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
         <label for="runSeed">Random seed</label>
         <input type="number" id="runSeed" value="42">
+        <span class="panel-hint">Same number = same initial layout every time (handy for comparing runs).</span>
         <label for="runName">Run name</label>
         <input type="text" id="runName" placeholder="" title="Leave empty for suggested name">
         <span class="run-name-hint">Leave empty to use suggested name</span>
@@ -132,8 +178,10 @@
           <label><input type="checkbox" id="runGpu"> Use GPU</label>
           <label><input type="checkbox" id="runCollisions"> Enable collisions</label>
         </div>
+        <span class="panel-hint">GPU = faster when you have many particles (needs a CUDA GPU). Collisions = particles can merge when very close; off = they pass through each other.</span>
         <label for="runRCollide">Collision radius</label>
         <input type="number" id="runRCollide" min="0.01" step="0.01" placeholder="auto">
+        <span class="panel-hint">How close two bodies must get to merge. Auto = a small safe value (only very close pairs merge).</span>
         <button type="button" id="runBtn">Run simulation</button>
         <div id="runStatus"></div>
       </div>
