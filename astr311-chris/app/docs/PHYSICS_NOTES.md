@@ -1,10 +1,13 @@
 # Physics Notes — Gravitational Simulation of Solar System Formation
 
+Brief physics reference for the N-body gravity simulation. For **what each simulation input does**, see [SIMULATION_TUNING.md](SIMULATION_TUNING.md#input-reference-what-each-control-does).
+
 ## Model
 
 - **Newtonian gravity** between point masses.
-- **Central star:** one particle (index 0) with mass M_star at the origin; all other particles are “test” particles or additional masses.
+- **Central star:** one particle (index 0) with mass M_star at the origin; all other particles are disk/cloud particles with mass m_particle.
 - **Gravitational softening:** we use a softened distance so forces do not diverge at small separations.
+- **Optional dark matter halo:** a static Hernquist halo can be added (M_halo, a_halo); it contributes extra inward acceleration and is used when setting initial circular velocities.
 
 ## Force law
 
@@ -16,13 +19,9 @@ Acceleration on particle i due to all others:
 - ε: softening length (e.g. 0.05); prevents singularities when particles get very close.
 - In 2D, r and v are (x, y); the formula is the same with 2-vectors.
 
-## Circular orbits
+## Circular orbits and halo
 
-For a particle of negligible mass at distance r from a central mass M, the circular orbital speed is:
-
-**v_circ = sqrt(G M / r)**
-
-Tangential velocity is set from this in disk initial conditions (with small random perturbations). In 2D, angular momentum per unit mass is L_z = x v_y − y v_x (out of the plane).
+For a particle at distance r, the circular orbital speed is **v_circ = sqrt(G M_enc(r) / r)** where M_enc is the enclosed mass. With no halo, M_enc = M_star. With a Hernquist halo, M_enc = M_star + M_halo × r²/(r + a_halo)². Initial disk/cloud velocities use this v_circ (with small random perturbations). In 2D, angular momentum per unit mass is L_z = x v_y − y v_x (out of the plane).
 
 ## Integration
 
@@ -42,10 +41,10 @@ Tangential velocity is set from this in disk initial conditions (with small rand
 
 ## Initial conditions
 
-- **Disk:** Particles in an annulus [r_min, r_max] with tangential velocity ≈ v_circ(r); small random perturbations to positions and velocities.
-- **Cloud:** Particles randomly distributed inside a radius r_max; velocities set with a configurable fraction of circular to give partial angular momentum.
+- **Disk:** Particles in an annulus [r_min, r_max] with tangential velocity ≈ v_circ(r) (v_circ includes star + halo enclosed mass); small random perturbations.
+- **Cloud:** Particles inside r_max; velocities use a fraction of v_circ for partial angular momentum.
 
-Both include the central star as particle 0 (mass M_star, at origin, zero velocity).
+Both include the central star as particle 0 (mass M_star, at origin, zero velocity). The **mass ratio** (M_star / m_particle) should be large (e.g. 1000:1 or more) so the star dominates and orbits are stable.
 
 ## Collisions (optional)
 

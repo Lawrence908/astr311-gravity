@@ -14,6 +14,11 @@ from .state import ParticleState
 G_DEFAULT = 1.0
 
 
+def _hernquist_enclosed(r: np.ndarray, M_halo: float, a_halo: float) -> np.ndarray:
+    """Hernquist enclosed mass: M(<r) = M_halo * r^2 / (r + a)^2."""
+    return M_halo * r ** 2 / (r + a_halo) ** 2
+
+
 def make_disk_2d(
     n_particles: int,
     seed: int | None = None,
@@ -24,6 +29,8 @@ def make_disk_2d(
     G: float = G_DEFAULT,
     velocity_noise: float = 0.02,
     position_noise: float = 0.01,
+    M_halo: float = 0.0,
+    a_halo: float = 5.0,
 ) -> ParticleState:
     """Return a 2D state with central star at origin and particles in an annular disk.
 
@@ -70,14 +77,14 @@ def make_disk_2d(
     positions = np.column_stack([x, y]).astype(float)
     positions += position_noise * rng.normal(size=(n_particles, 2))
 
-    # Circular orbit speed v = sqrt(G*M_star/r); tangential = (-sin theta, cos theta)
-    v_circ = np.sqrt(G * M_star / r)
+    # Circular orbit speed accounting for star + halo enclosed mass
+    M_enc = M_star + _hernquist_enclosed(r, M_halo, a_halo)
+    v_circ = np.sqrt(G * M_enc / r)
     vx = -v_circ * np.sin(theta)
     vy = v_circ * np.cos(theta)
     velocities = np.column_stack([vx, vy]).astype(float)
     velocities += velocity_noise * v_circ[:, None] * rng.normal(size=(n_particles, 2))
 
-    # Mass per particle: explicit or backward-compatible default
     if m_particle is None:
         m_particle = 1.0 / n_total
     masses_disk = np.full(n_particles, m_particle, dtype=float)
@@ -97,6 +104,8 @@ def make_cloud_2d(
     r_max: float = 2.0,
     angular_fraction: float = 0.5,
     G: float = G_DEFAULT,
+    M_halo: float = 0.0,
+    a_halo: float = 5.0,
 ) -> ParticleState:
     """Return a 2D state with central star and a random particle cloud.
 
@@ -136,7 +145,9 @@ def make_cloud_2d(
     y = r * np.sin(theta)
     positions = np.column_stack([x, y]).astype(float)
 
-    v_circ = np.sqrt(G * M_star / np.maximum(r, 1e-8))
+    r_safe = np.maximum(r, 1e-8)
+    M_enc = M_star + _hernquist_enclosed(r_safe, M_halo, a_halo)
+    v_circ = np.sqrt(G * M_enc / r_safe)
     v_tangent = angular_fraction * v_circ
     vx = -v_tangent * np.sin(theta)
     vy = v_tangent * np.cos(theta)
@@ -164,6 +175,8 @@ def make_disk_3d(
     G: float = G_DEFAULT,
     velocity_noise: float = 0.02,
     position_noise: float = 0.01,
+    M_halo: float = 0.0,
+    a_halo: float = 5.0,
 ) -> ParticleState:
     """Return a 3D state: central star at origin and particles in a thickened disk.
 
@@ -189,7 +202,9 @@ def make_disk_3d(
     positions = np.column_stack([x, y, z]).astype(float)
     positions += position_noise * rng.normal(size=(n_particles, 3))
 
-    v_circ = np.sqrt(G * M_star / np.maximum(r, 1e-8))
+    r_safe = np.maximum(r, 1e-8)
+    M_enc = M_star + _hernquist_enclosed(r_safe, M_halo, a_halo)
+    v_circ = np.sqrt(G * M_enc / r_safe)
     vx = -v_circ * np.sin(theta)
     vy = v_circ * np.cos(theta)
     vz = velocity_noise * v_circ * rng.normal(size=n_particles)
@@ -215,6 +230,8 @@ def make_cloud_3d(
     r_max: float = 2.0,
     angular_fraction: float = 0.5,
     G: float = G_DEFAULT,
+    M_halo: float = 0.0,
+    a_halo: float = 5.0,
 ) -> ParticleState:
     """Return a 3D state: central star and random particle cloud (uniform in volume).
 
@@ -239,9 +256,10 @@ def make_cloud_3d(
     z = r * np.cos(phi)
     positions = np.column_stack([x, y, z]).astype(float)
 
-    v_circ = np.sqrt(G * M_star / np.maximum(r, 1e-8))
+    r_safe = np.maximum(r, 1e-8)
+    M_enc = M_star + _hernquist_enclosed(r_safe, M_halo, a_halo)
+    v_circ = np.sqrt(G * M_enc / r_safe)
     v_tangent = angular_fraction * v_circ
-    # Tangential direction in the xy plane (simplified)
     vx = -v_tangent * np.sin(theta)
     vy = v_tangent * np.cos(theta)
     vz = np.zeros(n_particles, dtype=float)

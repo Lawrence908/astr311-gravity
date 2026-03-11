@@ -19,6 +19,7 @@ import numpy as np
 
 from .collisions import resolve_collisions
 from .diagnostics import SimulationLog, compute_angular_momentum, compute_total_energy
+from .forces_cpu import compute_halo_acceleration
 from .init_conditions import make_cloud_2d, make_disk_2d
 from .integrators import leapfrog_step
 from .progress import report_progress
@@ -59,6 +60,8 @@ def run_demo(
     use_gpu: bool = False,
     collisions: bool = False,
     r_collide: float | None = None,
+    M_halo: float = 0.0,
+    a_halo: float = 5.0,
 ) -> None:
     """Run 2D gravity demo with central star, disk or cloud ICs, and diagnostics.
 
@@ -83,7 +86,14 @@ def run_demo(
             raise SystemExit(e) from e
     else:
         from .forces_cpu import compute_accelerations_vectorized
-    accel_fn = _make_accel_fn(compute_accelerations_vectorized, softening=softening)
+    if M_halo > 0:
+        _base_accel = _make_accel_fn(compute_accelerations_vectorized, softening=softening)
+        def accel_fn(state: ParticleState):
+            a = _base_accel(state)
+            a += compute_halo_acceleration(state.positions, M_halo, a_halo, G=1.0)
+            return a
+    else:
+        accel_fn = _make_accel_fn(compute_accelerations_vectorized, softening=softening)
     if r_collide is None and collisions:
         r_collide = 1.0 * softening  # small so only genuinely close pairs merge; 2× softening over-merges dense disks
     if frames_dir is None:
@@ -93,11 +103,13 @@ def run_demo(
 
     if ic == "disk":
         state = make_disk_2d(
-            n_particles, seed=seed, M_star=M_star, m_particle=m_particle, r_min=r_min, r_max=r_max
+            n_particles, seed=seed, M_star=M_star, m_particle=m_particle,
+            r_min=r_min, r_max=r_max, M_halo=M_halo, a_halo=a_halo,
         )
     elif ic == "cloud":
         state = make_cloud_2d(
-            n_particles, seed=seed, M_star=M_star, m_particle=m_particle, r_max=r_max
+            n_particles, seed=seed, M_star=M_star, m_particle=m_particle,
+            r_max=r_max, M_halo=M_halo, a_halo=a_halo,
         )
     else:
         raise ValueError(f"Unknown ic={ic!r}; use 'disk' or 'cloud'")
@@ -232,6 +244,8 @@ def main() -> None:
     p.add_argument("--gpu", action="store_true", help="Use GPU for forces (requires CuPy and a CUDA GPU)")
     p.add_argument("--collisions", action="store_true", help="Enable inelastic mergers (particle–star and particle–particle)")
     p.add_argument("--r-collide", type=float, default=None, metavar="R", help="Collision radius when --collisions (default 2*softening)")
+    p.add_argument("--M-halo", type=float, default=0.0, dest="M_halo", help="Dark-matter halo mass (Hernquist profile, 0 = off)")
+    p.add_argument("--a-halo", type=float, default=5.0, dest="a_halo", help="Halo scale radius (Hernquist)")
     args = p.parse_args()
 
     run_demo(
@@ -257,6 +271,8 @@ def main() -> None:
         use_gpu=args.gpu,
         collisions=args.collisions,
         r_collide=args.r_collide,
+        M_halo=args.M_halo,
+        a_halo=args.a_halo,
     )
 
 
