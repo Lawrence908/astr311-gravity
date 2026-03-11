@@ -79,6 +79,23 @@ def compute_accelerations_vectorized(
     return acc.astype(pos.dtype)
 
 
+def compute_halo_acceleration(
+    positions: np.ndarray,
+    M_halo: float,
+    a_halo: float,
+    G: float = 1.0,
+) -> np.ndarray:
+    """Acceleration from a static Hernquist dark-matter halo centred at the origin.
+
+    a(r) = -G * M_halo / (r + a)^2  in the radial direction.
+    Hernquist enclosed mass: M(<r) = M_halo * r^2 / (r + a)^2.
+    """
+    r = np.sqrt(np.sum(positions * positions, axis=-1, keepdims=True))
+    r_safe = np.maximum(r, 1e-12)
+    acc = -G * M_halo / (r_safe + a_halo) ** 2 * (positions / r_safe)
+    return acc.astype(positions.dtype)
+
+
 # Re-export diagnostics for backward compatibility (canonical implementations in diagnostics.py)
 from .diagnostics import (
     compute_kinetic_energy,
